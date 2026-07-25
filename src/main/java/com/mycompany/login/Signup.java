@@ -23,6 +23,7 @@ public class Signup extends javax.swing.JFrame {
     private int currentRow = -1;
     public Signup() {
         initComponents();
+        ((BackgroundPanel) jPanel3).setBackgroundImage("/com/mycompany/login/images/signal.jpg");   
         addComponentListener(new java.awt.event.ComponentAdapter() {
         @Override
         public void componentResized(java.awt.event.ComponentEvent e) {
@@ -91,7 +92,7 @@ public class Signup extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        jPanel3 = new javax.swing.JPanel();
+        jPanel3 = new com.mycompany.login.BackgroundPanel();
         jLabel2 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
         jTextField1 = new javax.swing.JTextField();

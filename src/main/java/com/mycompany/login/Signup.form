@@ -44,6 +44,9 @@
           <Color blue="e0" green="d8" red="d1" type="rgb"/>
         </Property>
       </Properties>
+      <AuxValues>
+        <AuxValue name="JavaCodeGenerator_CreateCodeCustom" type="java.lang.String" value="new com.mycompany.login.BackgroundPanel()"/>
+      </AuxValues>
 
       <Layout>
         <DimensionLayout dim="0">
