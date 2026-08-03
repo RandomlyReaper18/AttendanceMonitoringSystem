@@ -1,0 +1,498 @@
+package com.mycompany.login;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.Timer;
+import javax.swing.JOptionPane;
+import javax.swing.JTable;
+import javax.swing.*;
+import java.awt.*;
+
+/**
+ * The admin dashboard screen. Now has two tabs: "Attendance" (the
+ * original live table) and "Manage Users" (view + delete registered
+ * accounts). Stats are shown as StatMiniCard visuals, and the dashboard
+ * controls sit inside a light styled card.
+ */
+public class AdministratorPanel extends JPanel {
+
+    private static final Color PAGE_BG = new Color(244, 246, 250);
+    private static final Color CARD_BG = Color.WHITE;
+    private static final Color CARD_BORDER = new Color(224, 227, 233);
+
+    private final MainFrame mainFrame;
+
+    private JButton jButton1;
+    private JButton jButton2;
+    private JButton jButton3;
+    private JButton jButton4;
+    private JLabel jLabel1;
+    private JLabel jLabel2;
+    private JLabel jLabel3;
+    private JLabel jLabel4;
+    private JLabel jLabel6;
+    private JPanel jPanel1;
+    private JPanel jPanel2;
+    private JScrollPane jScrollPane1;
+    private JTable jTable1;
+    private JTextField jTextField1;
+
+    private JPanel statsRow;
+    private StatMiniCard attendanceCard;
+    private StatMiniCard presentCard;
+    private StatMiniCard absentCard;
+    private StatMiniCard lateCard;
+    private StatMiniCard registeredCard;
+
+    private JTabbedPane tabbedPane;
+    private JTable usersTable;
+    private JButton deleteUserButton;
+
+    public AdministratorPanel(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
+        initComponents();
+
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                int size = Math.max(18, getWidth() / 35);
+                jLabel1.setFont(new Font("Tahoma", Font.BOLD, size));
+            }
+        });
+
+        jTable1.setFillsViewportHeight(true);
+        jTable1.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+
+        DefaultTableModel model = new DefaultTableModel();
+        model.setColumnIdentifiers(new String[]{
+            "Username", "Name", "Date", "Login Time", "Logout Time", "Status", "Attendance"
+        });
+        jTable1.setModel(model);
+
+        usersTable.setFillsViewportHeight(true);
+        usersTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        DefaultTableModel usersModel = new DefaultTableModel();
+        usersModel.setColumnIdentifiers(new String[]{"Username", "Full Name"});
+        usersTable.setModel(usersModel);
+
+        loadTodayAttendance();
+        loadUsersTable();
+        updateStatistics();
+
+        Timer clock = new Timer(1000, e ->
+                jLabel4.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"))));
+        clock.start();
+
+        Timer refreshTimer = new Timer(1000, e -> {
+            if (jTable1.getSelectedRow() == -1) {
+                loadTodayAttendance();
+            }
+        });
+        refreshTimer.start();
+
+        jLabel3.setText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+
+        jTextField1.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyReleased(java.awt.event.KeyEvent evt) {
+                searchUser();
+            }
+        });
+    }
+
+    /** Called by MainFrame right before this card becomes visible. */
+    public void onShow() {
+        loadTodayAttendance();
+        loadUsersTable();
+        updateStatistics();
+    }
+
+    private void updateStatistics() {
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        ArrayList<User> users = UserManager.loadUsers();
+
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+
+        int total = 0;
+        int present = 0;
+        int late = 0;
+
+        for (Attendance a : attendance) {
+            if (a.getDate().equals(today)) {
+                total++;
+                if ("Present".equals(a.getAttendanceStatus())) {
+                    present++;
+                }
+                if ("Late".equals(a.getAttendanceStatus())) {
+                    late++;
+                }
+            }
+        }
+
+        int registered = users.size();
+        int absent = Math.max(0, registered - total);
+
+        attendanceCard.setValue(String.valueOf(total));
+        presentCard.setValue(String.valueOf(present));
+        absentCard.setValue(String.valueOf(absent));
+        lateCard.setValue(String.valueOf(late));
+        registeredCard.setValue(String.valueOf(registered));
+    }
+
+    private void loadTodayAttendance() {
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
+
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+
+        for (Attendance a : attendance) {
+            if (a.getDate().equals(today)) {
+                model.addRow(new Object[]{
+                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(),
+                    a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus()
+                });
+            }
+        }
+        jLabel2.setText("Logged In Users : " + jTable1.getRowCount());
+    }
+
+    private void loadUsersTable() {
+        DefaultTableModel model = (DefaultTableModel) usersTable.getModel();
+        model.setRowCount(0);
+
+        for (User u : UserManager.loadUsers()) {
+            model.addRow(new Object[]{u.getUsername(), u.getName()});
+        }
+    }
+
+    private void deleteSelectedUser() {
+        int row = usersTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a user to delete.");
+            return;
+        }
+
+        String username = usersTable.getValueAt(row, 0).toString();
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Delete user \"" + username + "\"? This cannot be undone.\n"
+                + "(Their past attendance records will be kept.)",
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        boolean removed = UserManager.deleteUser(username);
+
+        if (removed) {
+            loadUsersTable();
+            updateStatistics();
+            JOptionPane.showMessageDialog(this, "User \"" + username + "\" deleted.");
+        } else {
+            JOptionPane.showMessageDialog(this, "User not found.");
+        }
+    }
+
+    private void initComponents() {
+        jScrollPane1 = new JScrollPane();
+        jTable1 = new JTable();
+        jPanel1 = new JPanel();
+        jLabel1 = new JLabel();
+        jButton2 = new JButton();
+        jButton3 = new JButton();
+        jLabel2 = new JLabel();
+        jLabel3 = new JLabel();
+        jLabel4 = new JLabel();
+        jButton4 = new JButton();
+        jPanel2 = new JPanel();
+        jLabel6 = new JLabel();
+        jTextField1 = new JTextField();
+        jButton1 = new JButton();
+
+        setBackground(PAGE_BG);
+        setOpaque(true);
+
+        jTable1.setModel(new DefaultTableModel(
+            new Object[][]{{null, null, null, null}, {null, null, null, null}, {null, null, null, null}, {null, null, null, null}},
+            new String[]{"Title 1", "Title 2", "Title 3", "Title 4"}
+        ));
+        jScrollPane1.setViewportView(jTable1);
+
+        jPanel1.setBackground(new Color(51, 153, 255));
+
+        jLabel1.setFont(new Font("Tahoma", Font.BOLD, 24));
+        jLabel1.setForeground(Color.WHITE);
+        jLabel1.setHorizontalAlignment(SwingConstants.CENTER);
+        jLabel1.setText("ADMINISTRATOR");
+
+        GroupLayout jPanel1Layout = new GroupLayout(jPanel1);
+        jPanel1.setLayout(jPanel1Layout);
+        jPanel1Layout.setHorizontalGroup(
+            jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addComponent(jLabel1, GroupLayout.Alignment.TRAILING, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+        );
+        jPanel1Layout.setVerticalGroup(
+            jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addGap(14, 14, 14)
+                .addComponent(jLabel1, GroupLayout.PREFERRED_SIZE, 37, GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(20, Short.MAX_VALUE))
+        );
+
+        jButton2.setText("Log Out User");
+        jButton2.setBackground(new Color(200, 55, 55));
+        jButton2.setForeground(Color.WHITE);
+        jButton2.setFocusPainted(false);
+        jButton2.addActionListener(this::jButton2ActionPerformed);
+
+        jButton3.setText("Refresh");
+        jButton3.setBackground(new Color(56, 103, 214));
+        jButton3.setForeground(Color.WHITE);
+        jButton3.setFocusPainted(false);
+        jButton3.addActionListener(this::jButton3ActionPerformed);
+
+        jButton4.setText("Login");
+        jButton4.setFocusPainted(false);
+        jButton4.addActionListener(this::jButton4ActionPerformed);
+
+        jLabel2.setFont(new Font("Tahoma", Font.BOLD, 13));
+        jLabel2.setHorizontalAlignment(SwingConstants.LEFT);
+        jLabel2.setText("Logged In Users : 0");
+
+        jLabel3.setFont(new Font("Tahoma", Font.BOLD, 13));
+        jLabel3.setHorizontalAlignment(SwingConstants.LEFT);
+        jLabel3.setText(".");
+
+        jLabel4.setFont(new Font("Tahoma", Font.BOLD, 13));
+        jLabel4.setHorizontalAlignment(SwingConstants.LEFT);
+        jLabel4.setText("");
+
+        jLabel6.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        jLabel6.setForeground(new Color(40, 40, 40));
+        jLabel6.setText("DASHBOARD");
+
+        jTextField1.addActionListener(this::jTextField1ActionPerformed);
+        jTextField1.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER, 1),
+                BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+
+        jButton1.setText("Search");
+        jButton1.setBackground(new Color(56, 103, 214));
+        jButton1.setForeground(Color.WHITE);
+        jButton1.setFocusPainted(false);
+        jButton1.addActionListener(this::jButton1ActionPerformed);
+
+        // --- Visual stat cards ---
+        attendanceCard = new StatMiniCard("TODAY'S ATTENDANCE", new Color(56, 103, 214));
+        presentCard = new StatMiniCard("PRESENT", new Color(46, 160, 67));
+        absentCard = new StatMiniCard("ABSENT", new Color(200, 55, 55));
+        lateCard = new StatMiniCard("LATE", new Color(230, 140, 30));
+        registeredCard = new StatMiniCard("REGISTERED USERS", new Color(0, 140, 140));
+
+        statsRow = new JPanel(new GridLayout(1, 5, 12, 0));
+        statsRow.setOpaque(false);
+        statsRow.add(attendanceCard);
+        statsRow.add(presentCard);
+        statsRow.add(absentCard);
+        statsRow.add(lateCard);
+        statsRow.add(registeredCard);
+
+        jPanel2.setBackground(CARD_BG);
+        jPanel2.setOpaque(true);
+        jPanel2.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER, 1),
+                BorderFactory.createEmptyBorder(14, 16, 14, 16)));
+
+        GroupLayout jPanel2Layout = new GroupLayout(jPanel2);
+        jPanel2.setLayout(jPanel2Layout);
+        jPanel2Layout.setHorizontalGroup(
+            jPanel2Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addComponent(jLabel6)
+            .addComponent(statsRow, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addGroup(jPanel2Layout.createSequentialGroup()
+                .addComponent(jTextField1)
+                .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jButton1))
+        );
+        jPanel2Layout.setVerticalGroup(
+            jPanel2Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel2Layout.createSequentialGroup()
+                .addComponent(jLabel6)
+                .addGap(12, 12, 12)
+                .addComponent(statsRow, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addGap(16, 16, 16)
+                .addGroup(jPanel2Layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                    .addComponent(jTextField1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jButton1)))
+        );
+
+        // --- Tabbed view: Attendance (existing table) + Manage Users (new) ---
+        tabbedPane = new JTabbedPane();
+
+        JPanel attendanceTab = new JPanel(new BorderLayout());
+        attendanceTab.setOpaque(false);
+        attendanceTab.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        attendanceTab.add(jScrollPane1, BorderLayout.CENTER);
+        tabbedPane.addTab("Attendance", attendanceTab);
+
+        usersTable = new JTable();
+        JScrollPane usersScroll = new JScrollPane(usersTable);
+
+        deleteUserButton = new JButton("Delete Selected User");
+        deleteUserButton.setBackground(new Color(200, 55, 55));
+        deleteUserButton.setForeground(Color.WHITE);
+        deleteUserButton.setFocusPainted(false);
+        deleteUserButton.addActionListener(e -> deleteSelectedUser());
+
+        JPanel usersButtonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        usersButtonRow.setOpaque(false);
+        usersButtonRow.add(deleteUserButton);
+
+        JPanel usersTab = new JPanel(new BorderLayout(0, 8));
+        usersTab.setOpaque(false);
+        usersTab.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        usersTab.add(usersScroll, BorderLayout.CENTER);
+        usersTab.add(usersButtonRow, BorderLayout.SOUTH);
+        tabbedPane.addTab("Manage Users", usersTab);
+
+        GroupLayout layout = new GroupLayout(this);
+        setLayout(layout);
+        layout.setHorizontalGroup(
+            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                    .addComponent(jPanel1, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jPanel2, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(tabbedPane, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(6, 6, 6)
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel3, GroupLayout.PREFERRED_SIZE, 192, GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED, 99, Short.MAX_VALUE)
+                                .addComponent(jLabel2, GroupLayout.PREFERRED_SIZE, 220, GroupLayout.PREFERRED_SIZE)
+                                .addGap(65, 65, 65)
+                                .addComponent(jLabel4, GroupLayout.PREFERRED_SIZE, 151, GroupLayout.PREFERRED_SIZE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jButton2)
+                                .addGap(18, 18, 18)
+                                .addComponent(jButton3)
+                                .addGap(26, 26, 26)
+                                .addComponent(jButton4)
+                                .addGap(0, 0, Short.MAX_VALUE)))))
+                .addContainerGap())
+        );
+        layout.setVerticalGroup(
+            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(jPanel1, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jPanel2, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(tabbedPane, GroupLayout.DEFAULT_SIZE, 300, Short.MAX_VALUE)
+                .addGap(14, 14, 14)
+                .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                    .addComponent(jButton2)
+                    .addComponent(jButton3)
+                    .addComponent(jButton4))
+                .addGap(10, 10, 10)
+                .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel2, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel4, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel3, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE))
+                .addContainerGap())
+        );
+
+        jScrollPane1.getAccessibleContext().setAccessibleName("");
+    }
+
+    private void searchUser() {
+        String keyword = jTextField1.getText().trim().toLowerCase();
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
+
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+
+        for (Attendance a : attendance) {
+            if (a.getUsername().toLowerCase().contains(keyword)) {
+                model.addRow(new Object[]{
+                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(), a.getLogoutTime(), a.getStatus()
+                });
+            }
+        }
+    }
+
+    private void jTextField1ActionPerformed(java.awt.event.ActionEvent evt) {
+        // TODO add your handling code here:
+    }
+
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {
+        int row = jTable1.getSelectedRow();
+
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user.");
+            return;
+        }
+
+        String username = jTable1.getValueAt(row, 0).toString();
+
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+
+        boolean removed = attendance.removeIf(a ->
+                a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
+
+        if (removed) {
+            AttendanceManager.saveAttendance(attendance);
+            loadTodayAttendance();
+            updateStatistics();
+            JOptionPane.showMessageDialog(this, "User logged out successfully.");
+        } else {
+            JOptionPane.showMessageDialog(this, "User not found.");
+        }
+    }
+
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {
+        // SEARCH BUTTON:
+        String keyword = jTextField1.getText().trim().toLowerCase();
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
+
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        ArrayList<User> users = UserManager.loadUsers();
+
+        for (Attendance a : attendance) {
+            for (User u : users) {
+                if (u.getUsername().equals(a.getUsername())) {
+                    if (a.getUsername().toLowerCase().contains(keyword)
+                            || u.getName().toLowerCase().contains(keyword)) {
+
+                        model.addRow(new Object[]{
+                            a.getUsername(), u.getName(), a.getDate(), a.getLoginTime(),
+                            a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus()
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {
+        // REFRESH:
+        loadTodayAttendance();
+        loadUsersTable();
+        updateStatistics();
+    }
+
+    private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
+        mainFrame.showCard(MainFrame.CARD_LOGIN);
+    }
+}
