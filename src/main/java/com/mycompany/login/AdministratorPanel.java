@@ -10,6 +10,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JTable;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Path;
+import javax.imageio.ImageIO;
 
 /**
  * The admin dashboard screen. Now has two tabs: "Attendance" (the
@@ -29,6 +33,7 @@ public class AdministratorPanel extends JPanel {
     private JButton jButton2;
     private JButton jButton3;
     private JButton jButton4;
+    private JButton addStudentsButton;
     private JLabel jLabel1;
     private JLabel jLabel2;
     private JLabel jLabel3;
@@ -50,6 +55,7 @@ public class AdministratorPanel extends JPanel {
     private JTabbedPane tabbedPane;
     private JTable usersTable;
     private JButton deleteUserButton;
+    private JTable reasonLogTable;
 
     public AdministratorPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
@@ -80,7 +86,9 @@ public class AdministratorPanel extends JPanel {
 
         loadTodayAttendance();
         loadUsersTable();
+        loadReasonLogTable();
         updateStatistics();
+        setupUsersContextMenu();
 
         Timer clock = new Timer(1000, e ->
                 jLabel4.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"))));
@@ -107,6 +115,7 @@ public class AdministratorPanel extends JPanel {
     public void onShow() {
         loadTodayAttendance();
         loadUsersTable();
+        loadReasonLogTable();
         updateStatistics();
     }
 
@@ -166,6 +175,351 @@ public class AdministratorPanel extends JPanel {
 
         for (User u : UserManager.loadUsers()) {
             model.addRow(new Object[]{u.getUsername(), u.getName()});
+        }
+    }
+
+    private void loadReasonLogTable() {
+        DefaultTableModel model = (DefaultTableModel) reasonLogTable.getModel();
+        model.setRowCount(0);
+
+        ArrayList<LogEntry> entries = ReasonLogManager.loadEntries();
+        // Most recent first.
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            LogEntry e = entries.get(i);
+            model.addRow(new Object[]{
+                e.getUsername(), e.getFullName(), e.getDate(),
+                "LATE".equals(e.getType()) ? "Late" : "Absence",
+                e.getAnswer(), e.getLoggedAt()
+            });
+        }
+    }
+
+    private void setupUsersContextMenu() {
+        JPopupMenu menu = new JPopupMenu();
+
+        JMenuItem resetItem = new JMenuItem("Reset Password");
+        resetItem.addActionListener(e -> resetSelectedUserPassword());
+
+        JMenuItem qrItem = new JMenuItem("View QR Code");
+        qrItem.addActionListener(e -> viewOrGenerateQrCode());
+
+        JMenuItem calendarItem = new JMenuItem("View Attendance Calendar");
+        calendarItem.addActionListener(e -> openAttendanceCalendar());
+
+        JMenuItem editItem = new JMenuItem("Edit User");
+        editItem.addActionListener(e -> editSelectedUser());
+
+        JMenuItem deleteItem = new JMenuItem("Delete User");
+        deleteItem.addActionListener(e -> deleteSelectedUser());
+
+        menu.add(resetItem);
+        menu.add(qrItem);
+        menu.add(calendarItem);
+        menu.add(editItem);
+        menu.addSeparator();
+        menu.add(deleteItem);
+
+        usersTable.setComponentPopupMenu(menu);
+
+        // Right-click should select the row under the cursor first, so
+        // the menu always acts on the row the user actually clicked.
+        usersTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                selectRowUnderCursor(e);
+            }
+
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) {
+                selectRowUnderCursor(e);
+            }
+
+            private void selectRowUnderCursor(java.awt.event.MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    int row = usersTable.rowAtPoint(e.getPoint());
+                    if (row >= 0) {
+                        usersTable.setRowSelectionInterval(row, row);
+                    }
+                }
+            }
+        });
+    }
+
+    private User findUserByUsername(String username) {
+        for (User u : UserManager.loadUsers()) {
+            if (u.getUsername().equals(username)) {
+                return u;
+            }
+        }
+        return null;
+    }
+
+    private void openAttendanceCalendar() {
+        int row = usersTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a user first.");
+            return;
+        }
+
+        String username = usersTable.getValueAt(row, 0).toString();
+        String name = usersTable.getValueAt(row, 1).toString();
+
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        AttendanceCalendarDialog dialog = new AttendanceCalendarDialog(owner, username, name);
+        dialog.setVisible(true);
+    }
+
+    /**
+     * Generates a brand-new password, hashes and stores it, and shows it
+     * ONCE in a dialog -- passwords are now hashed, so this can never be
+     * "shown" again after this. Copy/write it down immediately.
+     */
+    private void resetSelectedUserPassword() {
+        int row = usersTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a user first.");
+            return;
+        }
+
+        String username = usersTable.getValueAt(row, 0).toString();
+        User target = findUserByUsername(username);
+
+        if (target == null) {
+            JOptionPane.showMessageDialog(this, "User not found.");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Generate a new password for \"" + username + "\"?\n"
+                + "Their current password will stop working immediately.",
+                "Reset Password", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        String newPassword = generateStrongPassword();
+        boolean updated = UserManager.updateUser(username, username, newPassword, target.getName());
+
+        if (!updated) {
+            JOptionPane.showMessageDialog(this, "Failed to reset password.");
+            return;
+        }
+
+        JTextField passwordField = new JTextField(newPassword);
+        passwordField.setEditable(false);
+        passwordField.setFont(passwordField.getFont().deriveFont(Font.BOLD, 16f));
+
+        JButton copyBtn = new JButton("Copy");
+        copyBtn.addActionListener(e -> {
+            java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(newPassword);
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
+        });
+
+        JPanel row2 = new JPanel(new BorderLayout(6, 0));
+        row2.add(passwordField, BorderLayout.CENTER);
+        row2.add(copyBtn, BorderLayout.EAST);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.add(new JLabel("New password for " + username + " \u2014 write this down now, it can't be shown again:"), BorderLayout.NORTH);
+        panel.add(row2, BorderLayout.CENTER);
+
+        JOptionPane.showMessageDialog(this, panel, "New Password", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private String generateStrongPassword() {
+        String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String lower = "abcdefghijkmnpqrstuvwxyz";
+        String digits = "23456789";
+        String special = "!@#$%*";
+        String all = upper + lower + digits + special;
+
+        java.util.Random rnd = new java.util.Random();
+        char[] result = new char[10];
+        result[0] = upper.charAt(rnd.nextInt(upper.length()));
+        result[1] = lower.charAt(rnd.nextInt(lower.length()));
+        result[2] = digits.charAt(rnd.nextInt(digits.length()));
+        result[3] = special.charAt(rnd.nextInt(special.length()));
+        for (int i = 4; i < result.length; i++) {
+            result[i] = all.charAt(rnd.nextInt(all.length()));
+        }
+        // Fisher-Yates shuffle so the guaranteed-category characters
+        // aren't always in the same positions.
+        for (int i = result.length - 1; i > 0; i--) {
+            int j = rnd.nextInt(i + 1);
+            char tmp = result[i];
+            result[i] = result[j];
+            result[j] = tmp;
+        }
+        return new String(result);
+    }
+
+    private void editSelectedUser() {
+        int row = usersTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a user first.");
+            return;
+        }
+
+        String oldUsername = usersTable.getValueAt(row, 0).toString();
+        User target = findUserByUsername(oldUsername);
+
+        if (target == null) {
+            JOptionPane.showMessageDialog(this, "User not found.");
+            return;
+        }
+
+        JTextField usernameField = new JTextField(target.getUsername());
+        JTextField nameField = new JTextField(target.getName());
+        JPasswordField passwordField = new JPasswordField();
+        passwordField.setEchoChar('\u2022');
+
+        JLabel passwordHint = new JLabel("Leave blank to keep the current password.");
+        passwordHint.setForeground(new Color(120, 120, 120));
+        passwordHint.setFont(passwordHint.getFont().deriveFont(11f));
+
+        JCheckBox showPassword = new JCheckBox("Show password");
+        showPassword.addActionListener(e ->
+                passwordField.setEchoChar(showPassword.isSelected() ? (char) 0 : '\u2022'));
+
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.add(new JLabel("Username:"));
+        form.add(usernameField);
+        form.add(Box.createVerticalStrut(8));
+        form.add(new JLabel("Full Name:"));
+        form.add(nameField);
+        form.add(Box.createVerticalStrut(8));
+        form.add(new JLabel("New Password (optional):"));
+        form.add(passwordField);
+        form.add(passwordHint);
+        form.add(showPassword);
+
+        int result = JOptionPane.showConfirmDialog(this, form, "Edit User",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String newUsername = usernameField.getText().trim();
+        String newName = nameField.getText().trim();
+        String newPassword = String.valueOf(passwordField.getPassword()).trim();
+
+        if (newUsername.isEmpty() || newName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Username and Full Name are required.");
+            return;
+        }
+
+        if (!newPassword.isEmpty() && !UserManager.isStrongPassword(newPassword)) {
+            JOptionPane.showMessageDialog(this,
+                    "Password must contain:\n\n"
+                    + "- Minimum 8 characters\n"
+                    + "- At least 1 uppercase letter\n"
+                    + "- At least 1 lowercase letter\n"
+                    + "- At least 1 number\n"
+                    + "- At least 1 special character\n\n"
+                    + "Or leave it blank to keep the current password.");
+            return;
+        }
+
+        boolean updated = UserManager.updateUser(oldUsername, newUsername, newPassword, newName);
+
+        if (updated) {
+            loadUsersTable();
+            updateStatistics();
+            JOptionPane.showMessageDialog(this, "User updated.");
+        } else {
+            JOptionPane.showMessageDialog(this, "Update failed \u2014 that username may already be taken.");
+        }
+    }
+
+    /**
+     * Shows the student's saved QR code if one exists. If not (e.g. the
+     * account predates this feature, or was created without saving a QR),
+     * offers to reset their password and generate a fresh QR from it --
+     * same tradeoff as Reset Password: the old password/QR can't be
+     * recovered, only replaced.
+     */
+    private void viewOrGenerateQrCode() {
+        int row = usersTable.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Select a user first.");
+            return;
+        }
+        String username = usersTable.getValueAt(row, 0).toString();
+
+        if (QrCodeGenerator.hasQrCode(username)) {
+            showQrDialog(username, QrCodeGenerator.getQrPath(username));
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "No QR code exists yet for \"" + username + "\" (passwords are hashed, so one can't be "
+                + "generated from an existing password). Reset their password and generate a new QR code now?",
+                "No QR Code Yet", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        User target = findUserByUsername(username);
+        if (target == null) {
+            JOptionPane.showMessageDialog(this, "User not found.");
+            return;
+        }
+
+        String newPassword = generateStrongPassword();
+        boolean updated = UserManager.updateUser(username, username, newPassword, target.getName());
+        if (!updated) {
+            JOptionPane.showMessageDialog(this, "Failed to reset password.");
+            return;
+        }
+
+        try {
+            Path qrPath = QrCodeGenerator.saveForStudent(username, newPassword);
+            JOptionPane.showMessageDialog(this,
+                    "New password for " + username + ": " + newPassword
+                    + "\n(write this down now, it can't be shown again)",
+                    "New Password", JOptionPane.INFORMATION_MESSAGE);
+            showQrDialog(username, qrPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                    "Password was reset, but the QR code failed to save: " + e.getMessage());
+        }
+    }
+
+    private void showQrDialog(String username, Path qrPath) {
+        try {
+            BufferedImage img = ImageIO.read(qrPath.toFile());
+            JLabel imgLabel = new JLabel(new ImageIcon(img));
+
+            JButton openFolder = new JButton("Open Folder");
+            openFolder.addActionListener(e -> {
+                try {
+                    Desktop.getDesktop().open(qrPath.getParent().toFile());
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            });
+            JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            buttonRow.add(openFolder);
+
+            JPanel content = new JPanel(new BorderLayout(0, 10));
+            content.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+            content.add(imgLabel, BorderLayout.CENTER);
+            content.add(buttonRow, BorderLayout.SOUTH);
+
+            JDialog dialog = new JDialog(
+                    (Frame) SwingUtilities.getWindowAncestor(this), "QR Code \u2014 " + username, true);
+            dialog.setContentPane(content);
+            dialog.pack();
+            dialog.setLocationRelativeTo(this);
+            dialog.setVisible(true);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Failed to load QR code image: " + e.getMessage());
         }
     }
 
@@ -261,6 +615,12 @@ public class AdministratorPanel extends JPanel {
         jButton4.setText("Login");
         jButton4.setFocusPainted(false);
         jButton4.addActionListener(this::jButton4ActionPerformed);
+
+        addStudentsButton = new JButton("Add Students");
+        addStudentsButton.setBackground(new Color(46, 160, 67));
+        addStudentsButton.setForeground(Color.WHITE);
+        addStudentsButton.setFocusPainted(false);
+        addStudentsButton.addActionListener(e -> mainFrame.showCard(MainFrame.CARD_STUDENT_FORM));
 
         jLabel2.setFont(new Font("Tahoma", Font.BOLD, 13));
         jLabel2.setHorizontalAlignment(SwingConstants.LEFT);
@@ -362,6 +722,22 @@ public class AdministratorPanel extends JPanel {
         usersTab.add(usersButtonRow, BorderLayout.SOUTH);
         tabbedPane.addTab("Manage Users", usersTab);
 
+        reasonLogTable = new JTable();
+        reasonLogTable.setModel(new DefaultTableModel(
+                new String[]{"Username", "Name", "Date", "Type", "Answer", "Answered At"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int col) {
+                return false;
+            }
+        });
+        JScrollPane reasonLogScroll = new JScrollPane(reasonLogTable);
+
+        JPanel reasonLogTab = new JPanel(new BorderLayout());
+        reasonLogTab.setOpaque(false);
+        reasonLogTab.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        reasonLogTab.add(reasonLogScroll, BorderLayout.CENTER);
+        tabbedPane.addTab("Reason Log", reasonLogTab);
+
         GroupLayout layout = new GroupLayout(this);
         setLayout(layout);
         layout.setHorizontalGroup(
@@ -387,6 +763,8 @@ public class AdministratorPanel extends JPanel {
                                 .addComponent(jButton3)
                                 .addGap(26, 26, 26)
                                 .addComponent(jButton4)
+                                .addGap(26, 26, 26)
+                                .addComponent(addStudentsButton)
                                 .addGap(0, 0, Short.MAX_VALUE)))))
                 .addContainerGap())
         );
@@ -403,7 +781,8 @@ public class AdministratorPanel extends JPanel {
                 .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(jButton2)
                     .addComponent(jButton3)
-                    .addComponent(jButton4))
+                    .addComponent(jButton4)
+                    .addComponent(addStudentsButton))
                 .addGap(10, 10, 10)
                 .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel2, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE)
@@ -489,6 +868,7 @@ public class AdministratorPanel extends JPanel {
         // REFRESH:
         loadTodayAttendance();
         loadUsersTable();
+        loadReasonLogTable();
         updateStatistics();
     }
 

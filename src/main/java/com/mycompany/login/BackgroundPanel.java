@@ -92,15 +92,24 @@ public class BackgroundPanel extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g); // clears background first since setOpaque(true)
 
-        if (backgroundImage != null) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2.setRenderingHint(RenderingHints.KEY_RENDERING,
-                    RenderingHints.VALUE_RENDER_QUALITY);
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING,
+                RenderingHints.VALUE_RENDER_QUALITY);
 
+        if (backgroundImage != null) {
             g2.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
-            g2.dispose();
+        } else {
+            // No photo loaded -- paint a clean brand-color gradient instead
+            // of leaving a blank panel.
+            GradientPaint gradient = new GradientPaint(
+                    0, 0, new Color(56, 103, 214),
+                    getWidth(), getHeight(), new Color(30, 60, 140));
+            g2.setPaint(gradient);
+            g2.fillRect(0, 0, getWidth(), getHeight());
         }
+
+        g2.dispose();
     }
 }

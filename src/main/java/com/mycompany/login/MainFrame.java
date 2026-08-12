@@ -11,15 +11,15 @@ import java.awt.*;
 public class MainFrame extends JFrame {
 
     public static final String CARD_LOGIN = "login";
-    public static final String CARD_SIGNUP = "signup";
     public static final String CARD_ADMIN = "admin";
+    public static final String CARD_STUDENT_FORM = "studentForm";
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cardHost = new JPanel(cardLayout);
 
     private final LoginPanel loginPanel;
-    private final SignupPanel signupPanel;
     private final AdministratorPanel adminPanel;
+    private final StudentInfoFormPanel studentFormPanel;
 
     public MainFrame() {
         setTitle("Attendance Management System");
@@ -29,12 +29,12 @@ public class MainFrame extends JFrame {
         ).getImage());
 
         loginPanel = new LoginPanel(this);
-        signupPanel = new SignupPanel(this);
         adminPanel = new AdministratorPanel(this);
+        studentFormPanel = new StudentInfoFormPanel(this);
 
         cardHost.add(loginPanel, CARD_LOGIN);
-        cardHost.add(signupPanel, CARD_SIGNUP);
         cardHost.add(adminPanel, CARD_ADMIN);
+        cardHost.add(studentFormPanel, CARD_STUDENT_FORM);
 
         setContentPane(cardHost);
 
@@ -50,8 +50,8 @@ public class MainFrame extends JFrame {
     public void showCard(String name) {
         switch (name) {
             case CARD_LOGIN -> loginPanel.onShow();
-            case CARD_SIGNUP -> signupPanel.onShow();
             case CARD_ADMIN -> adminPanel.onShow();
+            case CARD_STUDENT_FORM -> studentFormPanel.onShow();
         }
         cardLayout.show(cardHost, name);
     }

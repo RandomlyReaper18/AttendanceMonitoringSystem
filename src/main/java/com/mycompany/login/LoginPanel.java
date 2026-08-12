@@ -25,10 +25,9 @@ public class LoginPanel extends JPanel {
     private JLabel jLabel3;
     private JLabel jLabel2;
     private JTextField jTextField1;
-    private JButton jButton2; // SIGN UP
     private JPasswordField jPasswordField1;
-    private JLabel jLabel4;
     private JLabel jLabel1;
+    private JButton scanQrButton;
     private JPanel jPanel1;
     private JScrollPane jScrollPane1;
     private JTable jTable1;
@@ -43,7 +42,8 @@ public class LoginPanel extends JPanel {
     public LoginPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
         initComponents();
-        jPanel3.setBackgroundImage("/com/mycompany/login/images/signal.jpg");
+        // No background photo loaded -- jPanel3 (BackgroundPanel) paints
+        // a clean gradient by default when no image is set.
 
         jTable1.setFillsViewportHeight(true);
         jTable1.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
@@ -122,9 +122,7 @@ public class LoginPanel extends JPanel {
         jLabel3 = new JLabel();
         jLabel2 = new JLabel();
         jTextField1 = new JTextField();
-        jButton2 = new JButton();
         jPasswordField1 = new JPasswordField();
-        jLabel4 = new JLabel();
         jLabel1 = new JLabel();
         jPanel1 = new JPanel();
         jScrollPane1 = new JScrollPane();
@@ -144,15 +142,16 @@ public class LoginPanel extends JPanel {
         jLabel2.setFont(new Font("Tahoma", Font.BOLD, 10));
         jLabel2.setText("Username: ");
 
-        jButton2.setText("SIGN UP");
-        jButton2.setBackground(Color.WHITE);
-        jButton2.setForeground(new Color(56, 103, 214));
-        jButton2.setFocusPainted(false);
-        jButton2.setBorder(BorderFactory.createLineBorder(new Color(56, 103, 214), 1));
-        jButton2.addActionListener(this::jButton2ActionPerformed);
+        jLabel1.setFont(new Font("Calibri", Font.BOLD, 24));
+        jLabel1.setHorizontalAlignment(SwingConstants.CENTER);
+        jLabel1.setText("ATTENDANCE MONITORING SYSTEM");
 
-        jLabel4.setText("I dont have an account.");
-        jLabel4.setForeground(new Color(90, 90, 90));
+        scanQrButton = new JButton("SCAN QR CODE");
+        scanQrButton.setBackground(new Color(46, 160, 67));
+        scanQrButton.setForeground(Color.WHITE);
+        scanQrButton.setFocusPainted(false);
+        scanQrButton.setFont(scanQrButton.getFont().deriveFont(Font.BOLD));
+        scanQrButton.addActionListener(e -> openQrScanner());
 
         jTextField1.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(224, 227, 233), 1),
@@ -161,21 +160,12 @@ public class LoginPanel extends JPanel {
                 BorderFactory.createLineBorder(new Color(224, 227, 233), 1),
                 BorderFactory.createEmptyBorder(4, 6, 4, 6)));
 
-        jLabel1.setFont(new Font("Calibri", Font.BOLD, 24));
-        jLabel1.setHorizontalAlignment(SwingConstants.CENTER);
-        jLabel1.setText("ATTENDANCE MONITORING SYSTEM");
-
         GroupLayout jPanel4Layout = new GroupLayout(jPanel4);
         jPanel4.setLayout(jPanel4Layout);
         jPanel4Layout.setHorizontalGroup(
             jPanel4Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addGroup(jPanel4Layout.createSequentialGroup()
                 .addGroup(jPanel4Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel4Layout.createSequentialGroup()
-                        .addGap(70, 70, 70)
-                        .addComponent(jLabel4)
-                        .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(jButton2, GroupLayout.PREFERRED_SIZE, 132, GroupLayout.PREFERRED_SIZE))
                     .addGroup(jPanel4Layout.createSequentialGroup()
                         .addGap(38, 38, 38)
                         .addGroup(jPanel4Layout.createParallelGroup(GroupLayout.Alignment.TRAILING)
@@ -189,7 +179,8 @@ public class LoginPanel extends JPanel {
                             .addGroup(GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
                                 .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED, 64, GroupLayout.PREFERRED_SIZE)
                                 .addComponent(jButton1, GroupLayout.PREFERRED_SIZE, 158, GroupLayout.PREFERRED_SIZE)
-                                .addGap(29, 29, 29)))))
+                                .addGap(29, 29, 29))
+                            .addComponent(scanQrButton, GroupLayout.PREFERRED_SIZE, 251, GroupLayout.PREFERRED_SIZE))))
                 .addGap(61, 61, 61))
             .addComponent(jLabel1, GroupLayout.Alignment.TRAILING, GroupLayout.PREFERRED_SIZE, 418, GroupLayout.PREFERRED_SIZE)
         );
@@ -210,12 +201,10 @@ public class LoginPanel extends JPanel {
                         .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(jPasswordField1, GroupLayout.PREFERRED_SIZE, 34, GroupLayout.PREFERRED_SIZE)
                         .addGap(18, 18, 18)
-                        .addComponent(jButton1, GroupLayout.PREFERRED_SIZE, 23, GroupLayout.PREFERRED_SIZE)))
-                .addGap(30, 30, 30)
-                .addGroup(jPanel4Layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
-                    .addComponent(jButton2)
-                    .addComponent(jLabel4))
-                .addGap(30, 30, 30))
+                        .addComponent(jButton1, GroupLayout.PREFERRED_SIZE, 23, GroupLayout.PREFERRED_SIZE)
+                        .addGap(14, 14, 14)
+                        .addComponent(scanQrButton, GroupLayout.PREFERRED_SIZE, 32, GroupLayout.PREFERRED_SIZE)))
+                .addGap(40, 40, 40))
         );
 
         // jPanel4 (the card) stays fixed-size and floats centered within
@@ -313,6 +302,21 @@ public class LoginPanel extends JPanel {
         );
     }
 
+    /** Opens the webcam scanner; on a successful scan, fills the fields and reuses the normal login flow. */
+    private void openQrScanner() {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        new QrScannerDialog(owner, text -> {
+            String[] parts = text.split(":", 2);
+            if (parts.length != 2) {
+                JOptionPane.showMessageDialog(this, "Unrecognized QR code format.");
+                return;
+            }
+            jTextField1.setText(parts[0]);
+            jPasswordField1.setText(parts[1]);
+            jButton1.doClick();
+        });
+    }
+
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {
         String username = jTextField1.getText().trim();
         String password = String.valueOf(jPasswordField1.getPassword());
@@ -354,6 +358,12 @@ public class LoginPanel extends JPanel {
 
             attendance.add(new Attendance(username, fullName, date, loginTime, "", "Logged In", attendanceStatus));
             AttendanceManager.saveAttendance(attendance);
+            ExcelAttendanceLogger.logAttendance(username, fullName, date, loginTime, "", "Logged In", attendanceStatus);
+
+            if ("Late".equals(attendanceStatus)) {
+                promptLateReason(username, fullName, date);
+            }
+            promptAbsenceExcuseIfNeeded(username, fullName, date);
 
             loadTodayAttendance();
             updateStatCards();
@@ -372,8 +382,82 @@ public class LoginPanel extends JPanel {
         }
     }
 
-    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {
-        mainFrame.showCard(MainFrame.CARD_SIGNUP);
+    /** Asks why the student is late, unless they already answered for today. */
+    private void promptLateReason(String username, String fullName, String date) {
+        if (ReasonLogManager.hasEntry(username, date, "LATE")) {
+            return;
+        }
+
+        String reason = JOptionPane.showInputDialog(this,
+                "You're marked Late today. Why are you late?",
+                "Reason for Being Late",
+                JOptionPane.QUESTION_MESSAGE);
+
+        if (reason == null || reason.trim().isEmpty()) {
+            reason = "(No reason provided)";
+        } else {
+            reason = reason.trim();
+        }
+
+        String loggedAt = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+        ReasonLogManager.addEntry(new LogEntry(username, fullName, date, "LATE", reason, loggedAt));
+    }
+
+    private LocalDate previousSchoolDay(LocalDate from) {
+        LocalDate d = from.minusDays(1);
+        while (d.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || d.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            d = d.minusDays(1);
+        }
+        return d;
+    }
+
+    /**
+     * If this student has attendance history but no record for the most
+     * recent school day before today (skipping weekends), and hasn't
+     * already given an excuse for it, asks for an excuse letter. Never
+     * blocks login -- a blank/cancelled answer is still logged as
+     * "(No excuse provided)" so the gap is visible to admin.
+     */
+    private void promptAbsenceExcuseIfNeeded(String username, String fullName, String today) {
+        String expectedPriorDate = previousSchoolDay(LocalDate.now()).format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+
+        ArrayList<Attendance> all = AttendanceManager.loadAttendance();
+        boolean hasPriorHistory = false;
+        boolean hasExpectedDateRecord = false;
+        for (Attendance a : all) {
+            if (a.getUsername().equals(username)) {
+                if (!a.getDate().equals(today)) {
+                    hasPriorHistory = true;
+                }
+                if (a.getDate().equals(expectedPriorDate)) {
+                    hasExpectedDateRecord = true;
+                }
+            }
+        }
+
+        if (!hasPriorHistory || hasExpectedDateRecord || ReasonLogManager.hasEntry(username, expectedPriorDate, "ABSENCE")) {
+            return;
+        }
+
+        JTextArea excuseArea = new JTextArea(5, 30);
+        excuseArea.setLineWrap(true);
+        excuseArea.setWrapStyleWord(true);
+        JScrollPane scroll = new JScrollPane(excuseArea);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.add(new JLabel("You were absent on " + expectedPriorDate + ". Please provide an excuse letter:"), BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Excuse Letter",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        String excuse = (result == JOptionPane.OK_OPTION) ? excuseArea.getText().trim() : "";
+        if (excuse.isEmpty()) {
+            excuse = "(No excuse provided)";
+        }
+
+        String loggedAt = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+        ReasonLogManager.addEntry(new LogEntry(username, fullName, expectedPriorDate, "ABSENCE", excuse, loggedAt));
     }
 
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {

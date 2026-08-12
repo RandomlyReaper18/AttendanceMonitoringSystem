@@ -1,5 +1,13 @@
-package com.mycompany.login;
+package com.mycompany.login.JFRAME;
 
+import com.mycompany.login.Attendance;
+import com.mycompany.login.AttendanceManager;
+import com.mycompany.login.BackgroundPanel;
+import com.mycompany.login.MainFrame;
+import com.mycompany.login.StatMiniCard;
+import com.mycompany.login.TranslucentCardPanel;
+import com.mycompany.login.User;
+import com.mycompany.login.UserManager;
 import javax.swing.table.DefaultTableModel;
 import java.time.LocalDate;
 import java.time.LocalTime;
