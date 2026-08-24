@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.Timer;
 import javax.swing.JOptionPane;
@@ -16,10 +18,8 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * The admin dashboard screen. Now has two tabs: "Attendance" (the
- * original live table) and "Manage Users" (view + delete registered
- * accounts). Stats are shown as StatMiniCard visuals, and the dashboard
- * controls sit inside a light styled card.
+ * The admin dashboard screen. Has three tabs: "Attendance", "Manage Users",
+ * and "Reason Log".
  */
 public class AdministratorPanel extends JPanel {
 
@@ -34,6 +34,7 @@ public class AdministratorPanel extends JPanel {
     private JButton jButton3;
     private JButton jButton4;
     private JButton addStudentsButton;
+    private JButton changeAdminButton;
     private JLabel jLabel1;
     private JLabel jLabel2;
     private JLabel jLabel3;
@@ -53,6 +54,7 @@ public class AdministratorPanel extends JPanel {
     private StatMiniCard registeredCard;
 
     private JTabbedPane tabbedPane;
+    private JComboBox<String> sectionComboBox;
     private JTable usersTable;
     private JButton deleteUserButton;
     private JTable reasonLogTable;
@@ -70,6 +72,7 @@ public class AdministratorPanel extends JPanel {
         });
 
         jTable1.setFillsViewportHeight(true);
+        jTable1.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         jTable1.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
         DefaultTableModel model = new DefaultTableModel();
@@ -87,6 +90,7 @@ public class AdministratorPanel extends JPanel {
         loadTodayAttendance();
         loadUsersTable();
         loadReasonLogTable();
+        loadSectionComboBox();
         updateStatistics();
         setupUsersContextMenu();
 
@@ -116,6 +120,7 @@ public class AdministratorPanel extends JPanel {
         loadTodayAttendance();
         loadUsersTable();
         loadReasonLogTable();
+        loadSectionComboBox();
         updateStatistics();
     }
 
@@ -178,12 +183,59 @@ public class AdministratorPanel extends JPanel {
         }
     }
 
+    private void loadSectionComboBox() {
+        String previouslySelected = (String) sectionComboBox.getSelectedItem();
+        sectionComboBox.removeAllItems();
+        for (String section : StudentSectionManager.getAllSectionNames()) {
+            sectionComboBox.addItem(section);
+        }
+        if (previouslySelected != null) {
+            sectionComboBox.setSelectedItem(previouslySelected);
+        }
+    }
+
+    /** Force-logs-out every currently logged-in student in the selected section. */
+    private void logOutSelectedSection() {
+        String section = (String) sectionComboBox.getSelectedItem();
+        if (section == null) {
+            JOptionPane.showMessageDialog(this, "No sections found yet \u2014 add students with a Section first.");
+            return;
+        }
+
+        ArrayList<String> usernames = StudentSectionManager.getUsernamesInSection(section);
+        if (usernames.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No students found in \"" + section + "\".");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Force log out all students in \"" + section + "\" (" + usernames.size() + " student(s))?",
+                "Confirm Section Logout", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        int loggedOut = 0;
+        for (String username : usernames) {
+            boolean removed = attendance.removeIf(a ->
+                    a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
+            if (removed) {
+                loggedOut++;
+            }
+        }
+
+        AttendanceManager.saveAttendance(attendance);
+        loadTodayAttendance();
+        updateStatistics();
+        JOptionPane.showMessageDialog(this, loggedOut + " student(s) in \"" + section + "\" logged out.");
+    }
+
     private void loadReasonLogTable() {
         DefaultTableModel model = (DefaultTableModel) reasonLogTable.getModel();
         model.setRowCount(0);
 
         ArrayList<LogEntry> entries = ReasonLogManager.loadEntries();
-        // Most recent first.
         for (int i = entries.size() - 1; i >= 0; i--) {
             LogEntry e = entries.get(i);
             model.addRow(new Object[]{
@@ -191,6 +243,76 @@ public class AdministratorPanel extends JPanel {
                 "LATE".equals(e.getType()) ? "Late" : "Absence",
                 e.getAnswer(), e.getLoggedAt()
             });
+        }
+    }
+
+    private void changeAdminCredentials() {
+        UserManager.AdminAccount currentAdmin = UserManager.loadAdmin();
+        
+        JTextField usernameField = new JTextField(currentAdmin.getUsername());
+        JPasswordField passwordField = new JPasswordField();
+        JPasswordField confirmPasswordField = new JPasswordField();
+        passwordField.setEchoChar('\u2022');
+        confirmPasswordField.setEchoChar('\u2022');
+
+        JCheckBox showPassword = new JCheckBox("Show password");
+        showPassword.addActionListener(e -> {
+            char echo = showPassword.isSelected() ? (char) 0 : '\u2022';
+            passwordField.setEchoChar(echo);
+            confirmPasswordField.setEchoChar(echo);
+        });
+
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.add(new JLabel("New Admin Username:"));
+        form.add(usernameField);
+        form.add(Box.createVerticalStrut(8));
+        form.add(new JLabel("New Admin Password:"));
+        form.add(passwordField);
+        form.add(Box.createVerticalStrut(8));
+        form.add(new JLabel("Confirm New Password:"));
+        form.add(confirmPasswordField);
+        form.add(Box.createVerticalStrut(4));
+        form.add(showPassword);
+
+        int result = JOptionPane.showConfirmDialog(this, form, "Change Admin Credentials",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String newUsername = usernameField.getText().trim();
+        String newPassword = String.valueOf(passwordField.getPassword()).trim();
+        String confirmPassword = String.valueOf(confirmPasswordField.getPassword()).trim();
+
+        if (newUsername.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Username cannot be empty.");
+            return;
+        }
+
+        if (!newPassword.equals(confirmPassword)) {
+            JOptionPane.showMessageDialog(this, "Passwords do not match.");
+            return;
+        }
+
+        if (!newPassword.isEmpty() && !UserManager.isStrongPassword(newPassword)) {
+            JOptionPane.showMessageDialog(this,
+                    "Password must contain:\n\n"
+                    + "- Minimum 8 characters\n"
+                    + "- At least 1 uppercase letter\n"
+                    + "- At least 1 lowercase letter\n"
+                    + "- At least 1 number\n"
+                    + "- At least 1 special character");
+            return;
+        }
+
+        boolean updated = UserManager.updateAdminCredentials(newUsername, newPassword);
+
+        if (updated) {
+            JOptionPane.showMessageDialog(this, "Admin credentials updated successfully!");
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update admin credentials.");
         }
     }
 
@@ -221,8 +343,6 @@ public class AdministratorPanel extends JPanel {
 
         usersTable.setComponentPopupMenu(menu);
 
-        // Right-click should select the row under the cursor first, so
-        // the menu always acts on the row the user actually clicked.
         usersTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mousePressed(java.awt.event.MouseEvent e) {
@@ -269,11 +389,6 @@ public class AdministratorPanel extends JPanel {
         dialog.setVisible(true);
     }
 
-    /**
-     * Generates a brand-new password, hashes and stores it, and shows it
-     * ONCE in a dialog -- passwords are now hashed, so this can never be
-     * "shown" again after this. Copy/write it down immediately.
-     */
     private void resetSelectedUserPassword() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
@@ -343,8 +458,7 @@ public class AdministratorPanel extends JPanel {
         for (int i = 4; i < result.length; i++) {
             result[i] = all.charAt(rnd.nextInt(all.length()));
         }
-        // Fisher-Yates shuffle so the guaranteed-category characters
-        // aren't always in the same positions.
+
         for (int i = result.length - 1; i > 0; i--) {
             int j = rnd.nextInt(i + 1);
             char tmp = result[i];
@@ -434,13 +548,6 @@ public class AdministratorPanel extends JPanel {
         }
     }
 
-    /**
-     * Shows the student's saved QR code if one exists. If not (e.g. the
-     * account predates this feature, or was created without saving a QR),
-     * offers to reset their password and generate a fresh QR from it --
-     * same tradeoff as Reset Password: the old password/QR can't be
-     * recovered, only replaced.
-     */
     private void viewOrGenerateQrCode() {
         int row = usersTable.getSelectedRow();
         if (row == -1) {
@@ -622,6 +729,12 @@ public class AdministratorPanel extends JPanel {
         addStudentsButton.setFocusPainted(false);
         addStudentsButton.addActionListener(e -> mainFrame.showCard(MainFrame.CARD_STUDENT_FORM));
 
+        changeAdminButton = new JButton("Change Admin Password");
+        changeAdminButton.setBackground(new Color(100, 110, 120));
+        changeAdminButton.setForeground(Color.WHITE);
+        changeAdminButton.setFocusPainted(false);
+        changeAdminButton.addActionListener(e -> changeAdminCredentials());
+
         jLabel2.setFont(new Font("Tahoma", Font.BOLD, 13));
         jLabel2.setHorizontalAlignment(SwingConstants.LEFT);
         jLabel2.setText("Logged In Users : 0");
@@ -649,7 +762,6 @@ public class AdministratorPanel extends JPanel {
         jButton1.setFocusPainted(false);
         jButton1.addActionListener(this::jButton1ActionPerformed);
 
-        // --- Visual stat cards ---
         attendanceCard = new StatMiniCard("TODAY'S ATTENDANCE", new Color(56, 103, 214));
         presentCard = new StatMiniCard("PRESENT", new Color(46, 160, 67));
         absentCard = new StatMiniCard("ABSENT", new Color(200, 55, 55));
@@ -693,12 +805,25 @@ public class AdministratorPanel extends JPanel {
                     .addComponent(jButton1)))
         );
 
-        // --- Tabbed view: Attendance (existing table) + Manage Users (new) ---
         tabbedPane = new JTabbedPane();
+
+        sectionComboBox = new JComboBox<>();
+        JButton logOutSectionButton = new JButton("Log Out Section");
+        logOutSectionButton.setBackground(new Color(200, 55, 55));
+        logOutSectionButton.setForeground(Color.WHITE);
+        logOutSectionButton.setFocusPainted(false);
+        logOutSectionButton.addActionListener(e -> logOutSelectedSection());
+
+        JPanel sectionLogoutRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        sectionLogoutRow.setOpaque(false);
+        sectionLogoutRow.add(new JLabel("Section:"));
+        sectionLogoutRow.add(sectionComboBox);
+        sectionLogoutRow.add(logOutSectionButton);
 
         JPanel attendanceTab = new JPanel(new BorderLayout());
         attendanceTab.setOpaque(false);
         attendanceTab.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        attendanceTab.add(sectionLogoutRow, BorderLayout.NORTH);
         attendanceTab.add(jScrollPane1, BorderLayout.CENTER);
         tabbedPane.addTab("Attendance", attendanceTab);
 
@@ -765,6 +890,8 @@ public class AdministratorPanel extends JPanel {
                                 .addComponent(jButton4)
                                 .addGap(26, 26, 26)
                                 .addComponent(addStudentsButton)
+                                .addGap(26, 26, 26)
+                                .addComponent(changeAdminButton)
                                 .addGap(0, 0, Short.MAX_VALUE)))))
                 .addContainerGap())
         );
@@ -782,7 +909,8 @@ public class AdministratorPanel extends JPanel {
                     .addComponent(jButton2)
                     .addComponent(jButton3)
                     .addComponent(jButton4)
-                    .addComponent(addStudentsButton))
+                    .addComponent(addStudentsButton)
+                    .addComponent(changeAdminButton))
                 .addGap(10, 10, 10)
                 .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel2, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE)
@@ -811,36 +939,51 @@ public class AdministratorPanel extends JPanel {
     }
 
     private void jTextField1ActionPerformed(java.awt.event.ActionEvent evt) {
-        // TODO add your handling code here:
     }
 
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {
-        int row = jTable1.getSelectedRow();
+        int[] rows = jTable1.getSelectedRows();
 
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a user.");
+        if (rows.length == 0) {
+            JOptionPane.showMessageDialog(this, "Please select at least one user.");
             return;
         }
 
-        String username = jTable1.getValueAt(row, 0).toString();
+        if (rows.length > 1) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Force log out " + rows.length + " selected users?",
+                    "Confirm Logout", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+
+        Set<String> usernames = new HashSet<>();
+        for (int row : rows) {
+            usernames.add(jTable1.getValueAt(row, 0).toString());
+        }
 
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        int loggedOut = 0;
+        for (String username : usernames) {
+            boolean removed = attendance.removeIf(a ->
+                    a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
+            if (removed) {
+                loggedOut++;
+            }
+        }
 
-        boolean removed = attendance.removeIf(a ->
-                a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
-
-        if (removed) {
+        if (loggedOut > 0) {
             AttendanceManager.saveAttendance(attendance);
             loadTodayAttendance();
             updateStatistics();
-            JOptionPane.showMessageDialog(this, "User logged out successfully.");
+            JOptionPane.showMessageDialog(this, loggedOut + " user(s) logged out successfully.");
         } else {
-            JOptionPane.showMessageDialog(this, "User not found.");
+            JOptionPane.showMessageDialog(this, "No matching logged-in users found.");
         }
     }
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {
-        // SEARCH BUTTON:
         String keyword = jTextField1.getText().trim().toLowerCase();
         DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         model.setRowCount(0);
@@ -865,10 +1008,10 @@ public class AdministratorPanel extends JPanel {
     }
 
     private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {
-        // REFRESH:
         loadTodayAttendance();
         loadUsersTable();
         loadReasonLogTable();
+        loadSectionComboBox();
         updateStatistics();
     }
 

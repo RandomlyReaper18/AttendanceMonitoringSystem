@@ -46,6 +46,7 @@ public class LoginPanel extends JPanel {
         // a clean gradient by default when no image is set.
 
         jTable1.setFillsViewportHeight(true);
+        jTable1.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         jTable1.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
         DefaultTableModel model = new DefaultTableModel();
@@ -233,7 +234,6 @@ public class LoginPanel extends JPanel {
             new String[]{"Title 1", "Title 2", "Title 3", "Title 4"}
         ));
         jScrollPane1.setViewportView(jTable1);
-        jScrollPane1.setPreferredSize(new Dimension(400, 280));
         jScrollPane1.setBorder(BorderFactory.createLineBorder(new Color(224, 227, 233), 1));
 
         jButton4.setText("LOG OUT");
@@ -257,6 +257,7 @@ public class LoginPanel extends JPanel {
 
         // Table + LOG OUT button placed side-by-side (mirrors SignupPanel's
         // jPanel1 layout), with the stat cards row underneath.
+        // Table + LOG OUT button placed side-by-side, with the stat cards row underneath.
         GroupLayout jPanel1Layout = new GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -265,22 +266,24 @@ public class LoginPanel extends JPanel {
                 .addGap(40, 40, 40)
                 .addGroup(jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGap(29, 29, 29)
+                        // Allow horizontal stretching
+                        .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 400, Short.MAX_VALUE) 
+                        .addGap(20, 20, 20)
                         .addComponent(jButton4))
                     .addComponent(statsRow, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap(40, Short.MAX_VALUE))
+                .addGap(40, 40, 40))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(20, 20, 20)
+                .addGap(40, 40, 40) // Fixed top margin
                 .addGroup(jPanel1Layout.createParallelGroup(GroupLayout.Alignment.TRAILING)
                     .addComponent(jButton4)
-                    .addComponent(jScrollPane1, GroupLayout.PREFERRED_SIZE, 280, GroupLayout.PREFERRED_SIZE))
-                .addGap(20, 20, 20)
+                    // The Short.MAX_VALUE here is the magic that lets the table expand vertically
+                    .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 280, Short.MAX_VALUE)) 
+                .addGap(20, 20, 20) // Gap between table and stats cards
                 .addComponent(statsRow, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGap(40, 40, 40)) // Fixed bottom margin anchors the stats cards and forces the table to stretch
         );
 
         // Top-level: both jPanel1 (table) and jPanel3 (photo) resize with
@@ -461,22 +464,37 @@ public class LoginPanel extends JPanel {
     }
 
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
-        int row = jTable1.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Select a user.");
+        int[] rows = jTable1.getSelectedRows();
+        if (rows.length == 0) {
+            JOptionPane.showMessageDialog(this, "Select at least one user.");
             return;
         }
 
-        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-        String username = model.getValueAt(row, 0).toString();
-        String date = model.getValueAt(row, 1).toString();
+        if (rows.length > 1) {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Log out " + rows.length + " selected users?",
+                    "Confirm Logout", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
 
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
-        attendance.removeIf(a -> a.getUsername().equals(username) && a.getDate().equals(date));
+
+        int loggedOut = 0;
+        for (int row : rows) {
+            String username = model.getValueAt(row, 0).toString();
+            String date = model.getValueAt(row, 1).toString();
+            boolean removed = attendance.removeIf(a -> a.getUsername().equals(username) && a.getDate().equals(date));
+            if (removed) {
+                loggedOut++;
+            }
+        }
         AttendanceManager.saveAttendance(attendance);
 
         loadTodayAttendance();
         updateStatCards();
-        JOptionPane.showMessageDialog(this, "User logged out.");
+        JOptionPane.showMessageDialog(this, loggedOut + " user(s) logged out.");
     }
 }

@@ -431,11 +431,14 @@ public class StudentInfoFormPanel extends JPanel {
         int qrGenerated = 0;
         List<String> failed = new ArrayList<>();
         List<String> qrFailed = new ArrayList<>();
+        String section = sectionField.getText().trim();
+        String grade = gradeField.getText().trim();
 
         for (GeneratedAccount acc : pendingAccounts) {
             boolean ok = UserManager.register(acc.username, acc.password, acc.fullName());
             if (ok) {
                 created++;
+                StudentSectionManager.assignSection(acc.username, section, grade);
                 try {
                     QrCodeGenerator.saveForStudent(acc.username, acc.password);
                     qrGenerated++;
