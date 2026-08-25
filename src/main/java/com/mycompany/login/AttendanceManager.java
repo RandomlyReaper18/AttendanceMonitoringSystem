@@ -3,7 +3,6 @@ package com.mycompany.login;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-import com.mycompany.login.Attendance;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -22,25 +21,14 @@ public class AttendanceManager {
     // Stored next to the running application, not the JVM's arbitrary
     // working directory -- avoids "my data disappeared" bugs caused by
     // launching the app from different locations.
-    private static final Path FILE = resolveDataFile("attendance.json");
+    private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
     private static final Path TEMP_FILE = resolveDataFile("attendance.json.tmp");
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     private static Path resolveDataFile(String name) {
-        try {
-            String jarDir = new File(AttendanceManager.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            return Paths.get(jarDir, name);
-        } catch (Exception e) {
-            return Paths.get(name);
-        }
+        return AppPaths.privateDataDir().resolve(name);
     }
 
     public static synchronized ArrayList<Attendance> loadAttendance() {

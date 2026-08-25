@@ -21,18 +21,7 @@ public class StudentSectionManager {
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     private static Path resolveDataFile(String name) {
-        try {
-            String jarDir = new File(StudentSectionManager.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            return Paths.get(jarDir, name);
-        } catch (Exception e) {
-            return Paths.get(name);
-        }
+        return AppPaths.privateDataDir().resolve(name);
     }
 
     public static synchronized ArrayList<StudentSection> loadAll() {

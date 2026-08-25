@@ -27,18 +27,7 @@ public class ExcelAttendanceLogger {
     };
 
     private static Path resolveDataFile() {
-        try {
-            String jarDir = new File(ExcelAttendanceLogger.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            return Paths.get(jarDir, FILE_NAME);
-        } catch (Exception e) {
-            return Paths.get(FILE_NAME);
-        }
+        return AppPaths.desktopRecordsDir().resolve(FILE_NAME);
     }
 
     /**

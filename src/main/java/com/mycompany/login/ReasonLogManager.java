@@ -14,23 +14,12 @@ import java.util.ArrayList;
 
 public class ReasonLogManager {
 
-    private static final Path FILE = resolveDataFile("reason_log.json");
+    private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
     private static final Path TEMP_FILE = resolveDataFile("reason_log.json.tmp");
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     private static Path resolveDataFile(String name) {
-        try {
-            String jarDir = new File(ReasonLogManager.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            return Paths.get(jarDir, name);
-        } catch (Exception e) {
-            return Paths.get(name);
-        }
+        return AppPaths.privateDataDir().resolve(name);
     }
 
     public static synchronized ArrayList<LogEntry> loadEntries() {

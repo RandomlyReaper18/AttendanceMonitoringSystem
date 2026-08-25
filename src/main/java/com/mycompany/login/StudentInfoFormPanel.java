@@ -1,6 +1,10 @@
 package com.mycompany.login;
 
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
@@ -18,8 +22,18 @@ import java.util.Set;
  */
 public class StudentInfoFormPanel extends JPanel {
 
-    private static final Color PAGE_BG = new Color(244, 246, 250);
-    private static final Color CARD_BORDER = new Color(224, 227, 233);
+    // --- Color Palette for Soft, Modern UI ---
+    private static final Color PAGE_BG = new Color(240, 243, 246);
+    private static final Color CARD_BG = new Color(250, 251, 253);
+    private static final Color HEADER_BG = new Color(43, 62, 80);
+    private static final Color CARD_BORDER = new Color(210, 216, 224);
+    private static final Color TEXT_PRIMARY = new Color(45, 55, 72);
+    private static final Color TEXT_MUTED = new Color(100, 110, 125);
+    
+    // Accent Colors
+    private static final Color PRIMARY_BLUE = new Color(56, 103, 214);
+    private static final Color SUCCESS_GREEN = new Color(46, 160, 67);
+    private static final Color RESET_GRAY = new Color(108, 117, 125);
 
     private final MainFrame mainFrame;
     private final Random random = new Random();
@@ -42,6 +56,7 @@ public class StudentInfoFormPanel extends JPanel {
     private DefaultTableModel resultsModel;
 
     private List<GeneratedAccount> pendingAccounts = new ArrayList<>();
+    private JPanel resultsWrapPanel;
 
     public StudentInfoFormPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
@@ -50,13 +65,9 @@ public class StudentInfoFormPanel extends JPanel {
 
     /** Called by MainFrame right before this card becomes visible. */
     public void onShow() {
-        // Intentionally left as-is between visits so a teacher/admin can
-        // leave and come back without losing an in-progress paste.
+        // Kept state between visits
     }
 
-    // ---------------------------------------------------------------
-    // Data holder for one generated student account
-    // ---------------------------------------------------------------
     private static class GeneratedAccount {
         String firstName;
         String lastName;
@@ -68,95 +79,115 @@ public class StudentInfoFormPanel extends JPanel {
         }
     }
 
-    // ---------------------------------------------------------------
-    // UI construction
-    // ---------------------------------------------------------------
     private void initComponents() {
         setBackground(PAGE_BG);
         setLayout(new BorderLayout());
 
-        JLabel title = new JLabel("Student Info Form");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        title.setBorder(BorderFactory.createEmptyBorder(20, 24, 4, 24));
+        // --- Header Banner ---
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(HEADER_BG);
+        titlePanel.setBorder(new EmptyBorder(16, 24, 16, 24));
 
+        JLabel title = new JLabel("Student Registration & Account Generator");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setForeground(Color.WHITE);
+
+        JLabel subtitle = new JLabel("Paste student names from Excel to automatically generate system credentials.");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitle.setForeground(new Color(190, 205, 220));
+
+        JPanel titleTextContainer = new JPanel();
+        titleTextContainer.setLayout(new BoxLayout(titleTextContainer, BoxLayout.Y_AXIS));
+        titleTextContainer.setOpaque(false);
+        titleTextContainer.add(title);
+        titleTextContainer.add(Box.createVerticalStrut(4));
+        titleTextContainer.add(subtitle);
+
+        titlePanel.add(titleTextContainer, BorderLayout.WEST);
+
+        // --- Main Form Card ---
         JPanel formCard = new JPanel();
-        formCard.setBackground(Color.WHITE);
+        formCard.setBackground(CARD_BG);
         formCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(CARD_BORDER, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+                new LineBorder(CARD_BORDER, 1),
+                new EmptyBorder(20, 20, 20, 20)));
         formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
 
-        // --- Section / Grade row ---
-        JPanel sectionGradeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        // --- Section / Grade Row ---
+        JPanel sectionGradeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
         sectionGradeRow.setOpaque(false);
-        sectionField = new JTextField(14);
-        gradeField = new JTextField(8);
-        sectionGradeRow.add(new JLabel("Section:"));
+        sectionField = createStyledTextField(14);
+        gradeField = createStyledTextField(8);
+        
+        sectionGradeRow.add(createFieldLabel("Section:"));
         sectionGradeRow.add(sectionField);
-        sectionGradeRow.add(Box.createHorizontalStrut(16));
-        sectionGradeRow.add(new JLabel("Grade:"));
+        sectionGradeRow.add(Box.createHorizontalStrut(20));
+        sectionGradeRow.add(createFieldLabel("Grade Level:"));
         sectionGradeRow.add(gradeField);
 
-        // --- Paste box ---
-        JLabel pasteLabel = new JLabel("Paste all the names of your students here (from Excel):");
-        pasteLabel.setBorder(BorderFactory.createEmptyBorder(10, 0, 4, 0));
-        pasteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // --- Paste Area ---
+        JLabel pasteLabel = createFieldLabel("Paste Student Names List (One name per line):");
+        pasteLabel.setBorder(new EmptyBorder(12, 0, 6, 0));
 
         pasteArea = new JTextArea(10, 40);
+        pasteArea.setFont(new Font("Consolas", Font.PLAIN, 13));
         pasteArea.setLineWrap(false);
-        pasteArea.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-        JScrollPane pasteScroll = new JScrollPane(pasteArea);
-        pasteScroll.setBorder(BorderFactory.createLineBorder(CARD_BORDER, 1));
-        pasteScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        pasteScroll.setPreferredSize(new Dimension(600, 220));
-        pasteScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
+        pasteArea.setBackground(Color.WHITE);
+        pasteArea.setForeground(TEXT_PRIMARY);
+        pasteArea.setBorder(new EmptyBorder(8, 8, 8, 8));
 
-        // --- Counts row ---
-        JPanel countsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        JScrollPane pasteScroll = new JScrollPane(pasteArea);
+        pasteScroll.setBorder(new LineBorder(CARD_BORDER, 1));
+        pasteScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pasteScroll.setPreferredSize(new Dimension(600, 180));
+        pasteScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
+
+        // --- Counts Row ---
+        JPanel countsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
         countsRow.setOpaque(false);
-        studentCountField = new JTextField(5);
-        girlsField = new JTextField(5);
-        boysField = new JTextField(5);
-        countsRow.add(new JLabel("No. of Students:"));
+        studentCountField = createStyledTextField(5);
+        girlsField = createStyledTextField(5);
+        boysField = createStyledTextField(5);
+
+        countsRow.add(createFieldLabel("Total Students:"));
         countsRow.add(studentCountField);
-        countsRow.add(Box.createHorizontalStrut(16));
-        countsRow.add(new JLabel("Girls:"));
+        countsRow.add(Box.createHorizontalStrut(15));
+        countsRow.add(createFieldLabel("Girls:"));
         countsRow.add(girlsField);
-        countsRow.add(Box.createHorizontalStrut(16));
-        countsRow.add(new JLabel("Boys:"));
+        countsRow.add(Box.createHorizontalStrut(15));
+        countsRow.add(createFieldLabel("Boys:"));
         countsRow.add(boysField);
 
-        // --- Generate button ---
+        // --- Generate Button ---
         generateButton = new JButton("GENERATE ACCOUNTS");
-        generateButton.setBackground(new Color(56, 103, 214));
-        generateButton.setForeground(Color.WHITE);
-        generateButton.setFocusPainted(false);
-        generateButton.setFont(generateButton.getFont().deriveFont(Font.BOLD));
-        generateButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        styleButton(generateButton, PRIMARY_BLUE, Color.WHITE);
+        generateButton.setPreferredSize(new Dimension(200, 36));
         generateButton.addActionListener(e -> onGenerateClicked());
 
         JPanel generateRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
         generateRow.setOpaque(false);
-        generateRow.setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
+        generateRow.setBorder(new EmptyBorder(14, 0, 0, 0));
         generateRow.add(generateButton);
 
         sectionGradeRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pasteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         countsRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         generateRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         formCard.add(sectionGradeRow);
         formCard.add(pasteLabel);
         formCard.add(pasteScroll);
+        formCard.add(Box.createVerticalStrut(10));
         formCard.add(countsRow);
         formCard.add(generateRow);
 
         JPanel formWrap = new JPanel(new BorderLayout());
         formWrap.setOpaque(false);
-        formWrap.setBorder(BorderFactory.createEmptyBorder(0, 24, 0, 24));
+        formWrap.setBorder(new EmptyBorder(16, 24, 0, 24));
         formWrap.add(formCard, BorderLayout.CENTER);
 
-        // --- Results table (appears after generating) ---
-        resultsModel = new DefaultTableModel(new String[]{"Username", "Password", "Full Name"}, 0) {
+        // --- Results Table Setup ---
+        resultsModel = new DefaultTableModel(new String[]{"Username", "Generated Password", "Full Name"}, 0) {
             @Override
             public boolean isCellEditable(int row, int col) {
                 return false;
@@ -164,28 +195,42 @@ public class StudentInfoFormPanel extends JPanel {
         };
         resultsTable = new JTable(resultsModel);
         resultsTable.setFillsViewportHeight(true);
-        JScrollPane resultsScroll = new JScrollPane(resultsTable);
-        resultsScroll.setBorder(BorderFactory.createLineBorder(CARD_BORDER, 1));
+        resultsTable.setRowHeight(26);
+        resultsTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        resultsTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        resultsTable.getTableHeader().setBackground(new Color(230, 235, 242));
+        resultsTable.getTableHeader().setForeground(TEXT_PRIMARY);
 
-        JPanel resultsCard = new JPanel(new BorderLayout(0, 8));
-        resultsCard.setBackground(Color.WHITE);
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        resultsTable.getColumnModel().getColumn(1).setCellRenderer(centerRenderer);
+
+        JScrollPane resultsScroll = new JScrollPane(resultsTable);
+        resultsScroll.setBorder(new LineBorder(CARD_BORDER, 1));
+
+        JPanel resultsCard = new JPanel(new BorderLayout(0, 10));
+        resultsCard.setBackground(CARD_BG);
         resultsCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(CARD_BORDER, 1),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+                new LineBorder(CARD_BORDER, 1),
+                new EmptyBorder(16, 16, 16, 16)));
 
         statusLabel = new JLabel(" ");
-        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
         copyButton = new JButton("Copy List to Clipboard");
-        saveButton = new JButton("Save && Register All");
-        saveButton.setBackground(new Color(46, 160, 67));
-        saveButton.setForeground(Color.WHITE);
-        saveButton.setFocusPainted(false);
+        styleButton(copyButton, Color.WHITE, TEXT_PRIMARY);
+        copyButton.setBorder(new CompoundBorder(new LineBorder(CARD_BORDER, 1), new EmptyBorder(6, 12, 6, 12)));
+
+        saveButton = new JButton("Save & Register All");
+        styleButton(saveButton, SUCCESS_GREEN, Color.WHITE);
+
+        openQrFolderButton = new JButton("Open QR Folder");
+        styleButton(openQrFolderButton, Color.WHITE, TEXT_PRIMARY);
+        openQrFolderButton.setBorder(new CompoundBorder(new LineBorder(CARD_BORDER, 1), new EmptyBorder(6, 12, 6, 12)));
+        openQrFolderButton.setEnabled(false);
+
         copyButton.addActionListener(e -> copyResultsToClipboard());
         saveButton.addActionListener(e -> onSaveClicked());
-
-        openQrFolderButton = new JButton("Open QR Codes Folder");
-        openQrFolderButton.setEnabled(false);
         openQrFolderButton.addActionListener(e -> {
             try {
                 Desktop.getDesktop().open(QrCodeGenerator.resolveQrFolder().toFile());
@@ -195,13 +240,13 @@ public class StudentInfoFormPanel extends JPanel {
             }
         });
 
-        JPanel resultsButtonRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel resultsButtonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         resultsButtonRow.setOpaque(false);
-        resultsButtonRow.add(copyButton);
         resultsButtonRow.add(saveButton);
+        resultsButtonRow.add(copyButton);
         resultsButtonRow.add(openQrFolderButton);
 
-        JPanel resultsTop = new JPanel(new BorderLayout());
+        JPanel resultsTop = new JPanel(new BorderLayout(0, 8));
         resultsTop.setOpaque(false);
         resultsTop.add(statusLabel, BorderLayout.NORTH);
         resultsTop.add(resultsButtonRow, BorderLayout.SOUTH);
@@ -211,27 +256,26 @@ public class StudentInfoFormPanel extends JPanel {
 
         JPanel resultsWrap = new JPanel(new BorderLayout());
         resultsWrap.setOpaque(false);
-        resultsWrap.setBorder(BorderFactory.createEmptyBorder(14, 24, 0, 24));
+        resultsWrap.setBorder(new EmptyBorder(16, 24, 0, 24));
         resultsWrap.add(resultsCard, BorderLayout.CENTER);
-        resultsWrap.setVisible(false); // shown once accounts are generated
+        resultsWrap.setVisible(false);
 
-        // --- Bottom buttons ---
+        // --- Bottom Command Row ---
         resetButton = new JButton("Start New Section");
+        styleButton(resetButton, RESET_GRAY, Color.WHITE);
         resetButton.addActionListener(e -> resetForm());
 
         backButton = new JButton("Back to Dashboard");
-        backButton.setBackground(new Color(56, 103, 214));
-        backButton.setForeground(Color.WHITE);
-        backButton.setFocusPainted(false);
+        styleButton(backButton, PRIMARY_BLUE, Color.WHITE);
         backButton.addActionListener(e -> mainFrame.showCard(MainFrame.CARD_ADMIN));
 
         JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         bottomRow.setOpaque(false);
-        bottomRow.setBorder(BorderFactory.createEmptyBorder(14, 24, 20, 24));
+        bottomRow.setBorder(new EmptyBorder(12, 24, 16, 24));
         bottomRow.add(backButton);
         bottomRow.add(resetButton);
 
-        // --- Assemble ---
+        // --- Outer Container Assembly ---
         JPanel centerStack = new JPanel();
         centerStack.setOpaque(false);
         centerStack.setLayout(new BoxLayout(centerStack, BoxLayout.Y_AXIS));
@@ -242,17 +286,44 @@ public class StudentInfoFormPanel extends JPanel {
 
         JScrollPane outerScroll = new JScrollPane(centerStack);
         outerScroll.setBorder(null);
+        outerScroll.setOpaque(false);
+        outerScroll.getViewport().setOpaque(false);
         outerScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        add(title, BorderLayout.NORTH);
+        add(titlePanel, BorderLayout.NORTH);
         add(outerScroll, BorderLayout.CENTER);
         add(bottomRow, BorderLayout.SOUTH);
 
-        // Stash a reference so onGenerateClicked/onSaveClicked can toggle it.
         this.resultsWrapPanel = resultsWrap;
     }
 
-    private JPanel resultsWrapPanel;
+    // --- Modern Component Styling Helpers ---
+    private JLabel createFieldLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        label.setForeground(TEXT_PRIMARY);
+        return label;
+    }
+
+    private JTextField createStyledTextField(int columns) {
+        JTextField field = new JTextField(columns);
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setForeground(TEXT_PRIMARY);
+        field.setBackground(Color.WHITE);
+        field.setBorder(new CompoundBorder(
+                new LineBorder(CARD_BORDER, 1),
+                new EmptyBorder(5, 8, 5, 8)));
+        return field;
+    }
+
+    private void styleButton(JButton button, Color bg, Color fg) {
+        button.setBackground(bg);
+        button.setForeground(fg);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(new EmptyBorder(8, 16, 8, 16));
+    }
 
     // ---------------------------------------------------------------
     // Generate button flow
@@ -309,8 +380,6 @@ public class StudentInfoFormPanel extends JPanel {
         }
 
         if (!badLines.isEmpty()) {
-            // Shouldn't normally reach here since counts would already
-            // mismatch, but just in case: surface it as a warning.
             StringBuilder msg = new StringBuilder("Some lines were skipped:\n");
             for (String bad : badLines) {
                 msg.append("  \u2022 ").append(bad).append("\n");
@@ -323,25 +392,16 @@ public class StudentInfoFormPanel extends JPanel {
 
         statusLabel.setText(pendingAccounts.size() + " account(s) generated for "
                 + section + " \u2014 Grade " + grade + ". Review below, then Save.");
-        statusLabel.setForeground(new Color(30, 30, 30));
+        statusLabel.setForeground(TEXT_PRIMARY);
         resultsWrapPanel.setVisible(true);
         saveButton.setEnabled(true);
     }
 
-    // ---------------------------------------------------------------
-    // Name parsing
-    // ---------------------------------------------------------------
     private static class ParsedName {
         String firstName;
         String lastName;
     }
 
-    /**
-     * Parses one name per line. Strips common Excel-paste artifacts
-     * (leading numbering like "1.", stray tabs). Lines that can't be
-     * split into at least a first and last name are skipped and added
-     * to badLinesOut with the original text.
-     */
     private List<ParsedName> parseNames(String pastedText, List<String> badLinesOut) {
         List<ParsedName> result = new ArrayList<>();
         if (pastedText == null) {
@@ -352,11 +412,11 @@ public class StudentInfoFormPanel extends JPanel {
         for (String rawLine : lines) {
             String original = rawLine.trim();
             if (original.isEmpty()) {
-                continue; // blank lines are ignored silently, not an error
+                continue;
             }
 
             String cleaned = original
-                    .replaceFirst("^\\d+[.)]\\s*", "") // strip leading "1. " / "1) "
+                    .replaceFirst("^\\d+[.)]\\s*", "")
                     .replaceAll("\\t+", " ")
                     .trim();
 
@@ -379,9 +439,6 @@ public class StudentInfoFormPanel extends JPanel {
         return result;
     }
 
-    // ---------------------------------------------------------------
-    // Credential generation
-    // ---------------------------------------------------------------
     private List<GeneratedAccount> generateAccounts(List<ParsedName> names) {
         Set<String> usedUsernames = new HashSet<>();
         for (User u : UserManager.loadUsers()) {
@@ -392,7 +449,7 @@ public class StudentInfoFormPanel extends JPanel {
         for (ParsedName pn : names) {
             String base = (pn.firstName + "." + pn.lastName)
                     .toLowerCase()
-                    .replaceAll("[^a-z.]", ""); // strip spaces/punctuation/apostrophes etc.
+                    .replaceAll("[^a-z.]", "");
 
             String username = base;
             int suffix = 2;
@@ -419,9 +476,6 @@ public class StudentInfoFormPanel extends JPanel {
         }
     }
 
-    // ---------------------------------------------------------------
-    // Save / register flow
-    // ---------------------------------------------------------------
     private void onSaveClicked() {
         if (pendingAccounts.isEmpty()) {
             return;
@@ -456,7 +510,7 @@ public class StudentInfoFormPanel extends JPanel {
         msg.append(qrGenerated).append(" QR code(s) generated in: ").append(QrCodeGenerator.resolveQrFolder()).append("\n");
         if (!failed.isEmpty()) {
             msg.append("\n").append(failed.size())
-               .append(" account(s) failed (username already existed \u2014 shouldn't normally happen):\n");
+               .append(" account(s) failed (username already existed):\n");
             for (String f : failed) {
                 msg.append("  \u2022 ").append(f).append("\n");
             }
@@ -471,14 +525,11 @@ public class StudentInfoFormPanel extends JPanel {
 
         statusLabel.setText("\u2713 Saved. " + created + " account(s) registered for "
                 + sectionField.getText().trim() + " \u2014 Grade " + gradeField.getText().trim() + ".");
-        statusLabel.setForeground(new Color(46, 160, 67));
+        statusLabel.setForeground(SUCCESS_GREEN);
         saveButton.setEnabled(false);
         openQrFolderButton.setEnabled(true);
     }
 
-    // ---------------------------------------------------------------
-    // Helpers
-    // ---------------------------------------------------------------
     private void copyResultsToClipboard() {
         StringBuilder sb = new StringBuilder();
         sb.append("Username\tPassword\tFull Name\n");

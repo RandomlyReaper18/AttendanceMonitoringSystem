@@ -42,26 +42,13 @@ public class QrCodeGenerator {
 
     /** Folder where QR PNGs are saved, next to the running app. Created if missing. */
     public static Path resolveQrFolder() {
+        Path folder = AppPaths.desktopRecordsDir().resolve("qr_codes");
         try {
-            String jarDir = new File(QrCodeGenerator.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            Path folder = Paths.get(jarDir, "qr_codes");
             Files.createDirectories(folder);
-            return folder;
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
-            Path fallback = Paths.get("qr_codes");
-            try {
-                Files.createDirectories(fallback);
-            } catch (IOException ignored) {
-            }
-            return fallback;
         }
+        return folder;
     }
 
     /** Generates and saves a student's QR code as qr_codes/&lt;username&gt;.png. Returns the saved path. */

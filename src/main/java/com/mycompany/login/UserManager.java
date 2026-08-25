@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 
 public class UserManager {
-    private static final Path FILE = resolveDataFile("users.json");
+    private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
     private static final Path TEMP_FILE = resolveDataFile("users.json.tmp");
     private static final Path ADMIN_FILE = resolveDataFile("admin.json");
     private static final Path ADMIN_TEMP_FILE = resolveDataFile("admin.json.tmp");

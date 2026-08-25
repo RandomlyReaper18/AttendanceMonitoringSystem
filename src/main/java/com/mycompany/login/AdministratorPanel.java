@@ -932,7 +932,8 @@ public class AdministratorPanel extends JPanel {
         for (Attendance a : attendance) {
             if (a.getUsername().toLowerCase().contains(keyword)) {
                 model.addRow(new Object[]{
-                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(), a.getLogoutTime(), a.getStatus()
+                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(),
+                    a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus()
                 });
             }
         }
