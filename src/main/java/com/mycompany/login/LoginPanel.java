@@ -26,12 +26,14 @@ public class LoginPanel extends JPanel {
     private JLabel jLabel2;
     private JTextField jTextField1;
     private JPasswordField jPasswordField1;
+    private JToggleButton togglePasswordButton;
     private JLabel jLabel1;
     private JButton scanQrButton;
     private JPanel jPanel1;
     private JScrollPane jScrollPane1;
     private JTable jTable1;
     private JButton jButton4; // LOG OUT
+    private JButton helpButton;
 
     private JPanel statsRow;
     private StatMiniCard totalStudentsCard;
@@ -42,8 +44,6 @@ public class LoginPanel extends JPanel {
     public LoginPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
         initComponents();
-        // No background photo loaded -- jPanel3 (BackgroundPanel) paints
-        // a clean gradient by default when no image is set.
 
         jTable1.setFillsViewportHeight(true);
         jTable1.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -77,7 +77,8 @@ public class LoginPanel extends JPanel {
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
 
         for (Attendance a : attendance) {
-            if (a.getDate().equals(today)) {
+            // Safe check: verify a and a.getDate() are not null
+            if (a != null && today.equals(a.getDate())) {
                 model.addRow(new Object[]{
                     a.getUsername(), a.getDate(), a.getLoginTime(), a.getLogoutTime(), a.getStatus()
                 });
@@ -96,7 +97,8 @@ public class LoginPanel extends JPanel {
         int late = 0;
 
         for (Attendance a : attendance) {
-            if (a.getDate().equals(today)) {
+            // Safe check preventing NullPointerException
+            if (a != null && today.equals(a.getDate())) {
                 total++;
                 if ("Present".equals(a.getAttendanceStatus())) {
                     present++;
@@ -123,7 +125,36 @@ public class LoginPanel extends JPanel {
         jLabel3 = new JLabel();
         jLabel2 = new JLabel();
         jTextField1 = new JTextField();
+        
+        // --- Password Field & Eye Toggle Setup ---
         jPasswordField1 = new JPasswordField();
+        togglePasswordButton = new JToggleButton("👁");
+        togglePasswordButton.setFocusPainted(false);
+        togglePasswordButton.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 5));
+        togglePasswordButton.setContentAreaFilled(false);
+        togglePasswordButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        char defaultEchoChar = jPasswordField1.getEchoChar();
+
+        togglePasswordButton.addActionListener(e -> {
+            if (togglePasswordButton.isSelected()) {
+                jPasswordField1.setEchoChar((char) 0);
+            } else {
+                jPasswordField1.setEchoChar(defaultEchoChar);
+            }
+        });
+
+        JPanel passwordContainer = new JPanel(new BorderLayout());
+        passwordContainer.setBackground(Color.WHITE);
+        passwordContainer.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(224, 227, 233), 1),
+                BorderFactory.createEmptyBorder(4, 6, 4, 6)));
+
+        jPasswordField1.setBorder(null);
+        passwordContainer.add(jPasswordField1, BorderLayout.CENTER);
+        passwordContainer.add(togglePasswordButton, BorderLayout.EAST);
+        // ------------------------------------------
+
         jLabel1 = new JLabel();
         jPanel1 = new JPanel();
         jScrollPane1 = new JScrollPane();
@@ -157,9 +188,6 @@ public class LoginPanel extends JPanel {
         jTextField1.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(224, 227, 233), 1),
                 BorderFactory.createEmptyBorder(4, 6, 4, 6)));
-        jPasswordField1.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(224, 227, 233), 1),
-                BorderFactory.createEmptyBorder(4, 6, 4, 6)));
 
         GroupLayout jPanel4Layout = new GroupLayout(jPanel4);
         jPanel4.setLayout(jPanel4Layout);
@@ -175,7 +203,7 @@ public class LoginPanel extends JPanel {
                         .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
                         .addGroup(jPanel4Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
                             .addGroup(jPanel4Layout.createParallelGroup(GroupLayout.Alignment.TRAILING, false)
-                                .addComponent(jPasswordField1)
+                                .addComponent(passwordContainer, GroupLayout.PREFERRED_SIZE, 251, GroupLayout.PREFERRED_SIZE)
                                 .addComponent(jTextField1, GroupLayout.PREFERRED_SIZE, 251, GroupLayout.PREFERRED_SIZE))
                             .addGroup(GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
                                 .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED, 64, GroupLayout.PREFERRED_SIZE)
@@ -200,7 +228,7 @@ public class LoginPanel extends JPanel {
                         .addGap(3, 3, 3)
                         .addComponent(jTextField1, GroupLayout.PREFERRED_SIZE, 34, GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(jPasswordField1, GroupLayout.PREFERRED_SIZE, 34, GroupLayout.PREFERRED_SIZE)
+                        .addComponent(passwordContainer, GroupLayout.PREFERRED_SIZE, 34, GroupLayout.PREFERRED_SIZE)
                         .addGap(18, 18, 18)
                         .addComponent(jButton1, GroupLayout.PREFERRED_SIZE, 23, GroupLayout.PREFERRED_SIZE)
                         .addGap(14, 14, 14)
@@ -208,8 +236,6 @@ public class LoginPanel extends JPanel {
                 .addGap(40, 40, 40))
         );
 
-        // jPanel4 (the card) stays fixed-size and floats centered within
-        // jPanel3 (the photo).
         GroupLayout jPanel3Layout = new GroupLayout(jPanel3);
         jPanel3.setLayout(jPanel3Layout);
         jPanel3Layout.setHorizontalGroup(
@@ -242,7 +268,6 @@ public class LoginPanel extends JPanel {
         jButton4.setFocusPainted(false);
         jButton4.addActionListener(this::jButton4ActionPerformed);
 
-        // --- Mini stat cards, matching the reference dashboard style ---
         totalStudentsCard = new StatMiniCard("TOTAL STUDENTS", new Color(56, 103, 214));
         presentCard = new StatMiniCard("PRESENT TODAY", new Color(46, 160, 67));
         absentCard = new StatMiniCard("ABSENT TODAY", new Color(200, 55, 55));
@@ -255,9 +280,6 @@ public class LoginPanel extends JPanel {
         statsRow.add(absentCard);
         statsRow.add(lateCard);
 
-        // Table + LOG OUT button placed side-by-side (mirrors SignupPanel's
-        // jPanel1 layout), with the stat cards row underneath.
-        // Table + LOG OUT button placed side-by-side, with the stat cards row underneath.
         GroupLayout jPanel1Layout = new GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -266,7 +288,6 @@ public class LoginPanel extends JPanel {
                 .addGap(40, 40, 40)
                 .addGroup(jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        // Allow horizontal stretching
                         .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 400, Short.MAX_VALUE) 
                         .addGap(20, 20, 20)
                         .addComponent(jButton4))
@@ -276,20 +297,19 @@ public class LoginPanel extends JPanel {
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(40, 40, 40) // Fixed top margin
+                .addGap(40, 40, 40)
                 .addGroup(jPanel1Layout.createParallelGroup(GroupLayout.Alignment.TRAILING)
                     .addComponent(jButton4)
-                    // The Short.MAX_VALUE here is the magic that lets the table expand vertically
                     .addComponent(jScrollPane1, GroupLayout.DEFAULT_SIZE, 280, Short.MAX_VALUE)) 
-                .addGap(20, 20, 20) // Gap between table and stats cards
+                .addGap(20, 20, 20)
                 .addComponent(statsRow, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addGap(40, 40, 40)) // Fixed bottom margin anchors the stats cards and forces the table to stretch
+                .addGap(40, 40, 40))
         );
 
-        // Top-level: both jPanel1 (table) and jPanel3 (photo) resize with
-        // the window, sharing extra space proportionally.
-        GroupLayout layout = new GroupLayout(this);
-        setLayout(layout);
+        // Fixed: Instantiated mainContent and bound layout directly to it
+        JPanel mainContent = new JPanel();
+        GroupLayout layout = new GroupLayout(mainContent);
+        mainContent.setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
@@ -303,6 +323,26 @@ public class LoginPanel extends JPanel {
             .addComponent(jPanel1, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
             .addComponent(jPanel3, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
+
+        // Small "Help" button in a thin header row above the login/attendance content.
+        helpButton = new JButton("? Help");
+        helpButton.setFocusPainted(false);
+        helpButton.setBackground(new Color(255, 255, 255, 220));
+        helpButton.setForeground(new Color(56, 103, 214));
+        helpButton.setFont(helpButton.getFont().deriveFont(Font.BOLD, 11f));
+        helpButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(56, 103, 214), 1),
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+        helpButton.addActionListener(e ->
+                new TutorialDialog(SwingUtilities.getWindowAncestor(this)).setVisible(true));
+
+        JPanel helpCorner = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 8));
+        helpCorner.setOpaque(false);
+        helpCorner.add(helpButton);
+
+        setLayout(new BorderLayout());
+        add(helpCorner, BorderLayout.NORTH);
+        add(mainContent, BorderLayout.CENTER);
     }
 
     /** Opens the webcam scanner; on a successful scan, fills the fields and reuses the normal login flow. */
@@ -333,13 +373,13 @@ public class LoginPanel extends JPanel {
 
             Attendance existing = null;
             for (Attendance a : attendance) {
-                if (a.getUsername().equals(username) && a.getDate().equals(date)) {
+                if (a != null && username.equals(a.getUsername()) && date.equals(a.getDate())) {
                     existing = a;
                     break;
                 }
             }
 
-            if (existing != null && existing.getStatus().equals("Logged In")) {
+            if (existing != null && "Logged In".equals(existing.getStatus())) {
                 JOptionPane.showMessageDialog(this, "This user is already logged in.");
                 loadTodayAttendance();
                 return;
@@ -350,7 +390,7 @@ public class LoginPanel extends JPanel {
 
             String fullName = "";
             for (User u : UserManager.loadUsers()) {
-                if (u.getUsername().equals(username)) {
+                if (u != null && username.equals(u.getUsername())) {
                     fullName = u.getName();
                     break;
                 }
@@ -372,17 +412,50 @@ public class LoginPanel extends JPanel {
             updateStatCards();
             jTextField1.setText("");
             jPasswordField1.setText("");
-            JOptionPane.showMessageDialog(this, "Login Successful!");
+            showAutoDismissDialog("Login Successful!", 1000);
 
         } else if (UserManager.adminLogin(username, password)) {
-            JOptionPane.showMessageDialog(this, "Login Successful!");
             jTextField1.setText("");
             jPasswordField1.setText("");
+            showAutoDismissDialog("Login Successful!", 1000);
             mainFrame.showCard(MainFrame.CARD_ADMIN);
 
         } else {
             JOptionPane.showMessageDialog(this, "Invalid Username or Password");
         }
+    }
+
+    /**
+     * Shows a small non-modal popup with the given message that closes itself
+     * after durationMillis (in addition to being closeable normally). Used for
+     * quick confirmations like "Login Successful!" that shouldn't require a click.
+     */
+    private void showAutoDismissDialog(String message, int durationMillis) {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        JDialog dialog = new JDialog(owner, "", Dialog.ModalityType.MODELESS);
+        dialog.setUndecorated(true);
+
+        JLabel label = new JLabel(message, SwingConstants.CENTER);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 14f));
+        label.setForeground(Color.WHITE);
+
+        JPanel content = new JPanel(new BorderLayout());
+        content.setBackground(new Color(46, 160, 67));
+        content.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(30, 120, 50), 1),
+                BorderFactory.createEmptyBorder(16, 28, 16, 28)));
+        content.add(label, BorderLayout.CENTER);
+
+        dialog.setContentPane(content);
+        dialog.pack();
+        dialog.setLocationRelativeTo(owner);
+        dialog.setAlwaysOnTop(true);
+
+        Timer timer = new Timer(durationMillis, e -> dialog.dispose());
+        timer.setRepeats(false);
+        timer.start();
+
+        dialog.setVisible(true);
     }
 
     /** Asks why the student is late, unless they already answered for today. */
@@ -414,13 +487,6 @@ public class LoginPanel extends JPanel {
         return d;
     }
 
-    /**
-     * If this student has attendance history but no record for the most
-     * recent school day before today (skipping weekends), and hasn't
-     * already given an excuse for it, asks for an excuse letter. Never
-     * blocks login -- a blank/cancelled answer is still logged as
-     * "(No excuse provided)" so the gap is visible to admin.
-     */
     private void promptAbsenceExcuseIfNeeded(String username, String fullName, String today) {
         String expectedPriorDate = previousSchoolDay(LocalDate.now()).format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
 
@@ -428,7 +494,7 @@ public class LoginPanel extends JPanel {
         boolean hasPriorHistory = false;
         boolean hasExpectedDateRecord = false;
         for (Attendance a : all) {
-            if (a.getUsername().equals(username)) {
+            if (a != null && username.equals(a.getUsername()) && a.getDate() != null) {
                 if (!a.getDate().equals(today)) {
                     hasPriorHistory = true;
                 }
@@ -482,13 +548,26 @@ public class LoginPanel extends JPanel {
         DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
 
+        String logoutTime = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+
         int loggedOut = 0;
         for (int row : rows) {
             String username = model.getValueAt(row, 0).toString();
             String date = model.getValueAt(row, 1).toString();
-            boolean removed = attendance.removeIf(a -> a.getUsername().equals(username) && a.getDate().equals(date));
-            if (removed) {
-                loggedOut++;
+
+            for (Attendance a : attendance) {
+                if (a != null && username.equals(a.getUsername()) && date.equals(a.getDate())
+                        && "Logged In".equals(a.getStatus())) {
+
+                    a.setLogoutTime(logoutTime);
+                    a.setStatus("Logged Out");
+                    loggedOut++;
+
+                    ExcelAttendanceLogger.logAttendance(
+                            a.getUsername(), a.getName(), a.getDate(),
+                            a.getLoginTime(), a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus());
+                    break;
+                }
             }
         }
         AttendanceManager.saveAttendance(attendance);

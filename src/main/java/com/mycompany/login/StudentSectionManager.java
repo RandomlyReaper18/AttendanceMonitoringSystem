@@ -81,4 +81,11 @@ public class StudentSectionManager {
         }
         return result;
     }
+
+    /** Removes every student's section assignment for the given section (used when deleting a whole section). */
+    public static synchronized void deleteSection(String section) {
+        ArrayList<StudentSection> list = loadAll();
+        list.removeIf(s -> s.getSection().equals(section));
+        saveAll(list);
+    }
 }

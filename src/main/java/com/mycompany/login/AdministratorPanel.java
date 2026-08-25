@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.Timer;
@@ -14,6 +15,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
@@ -35,6 +37,7 @@ public class AdministratorPanel extends JPanel {
     private JButton jButton4;
     private JButton addStudentsButton;
     private JButton changeAdminButton;
+    private JButton helpButton;
     private JLabel jLabel1;
     private JLabel jLabel2;
     private JLabel jLabel3;
@@ -82,6 +85,7 @@ public class AdministratorPanel extends JPanel {
         jTable1.setModel(model);
 
         usersTable.setFillsViewportHeight(true);
+        usersTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         usersTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         DefaultTableModel usersModel = new DefaultTableModel();
         usersModel.setColumnIdentifiers(new String[]{"Username", "Full Name"});
@@ -135,7 +139,8 @@ public class AdministratorPanel extends JPanel {
         int late = 0;
 
         for (Attendance a : attendance) {
-            if (a.getDate().equals(today)) {
+            // Safe check: verify a and a.getDate() are not null before comparing
+            if (a != null && a.getDate() != null && a.getDate().equals(today)) {
                 total++;
                 if ("Present".equals(a.getAttendanceStatus())) {
                     present++;
@@ -164,7 +169,8 @@ public class AdministratorPanel extends JPanel {
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
 
         for (Attendance a : attendance) {
-            if (a.getDate().equals(today)) {
+            // Safe check preventing NullPointerException
+            if (a != null && a.getDate() != null && a.getDate().equals(today)) {
                 model.addRow(new Object[]{
                     a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(),
                     a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus()
@@ -216,12 +222,22 @@ public class AdministratorPanel extends JPanel {
         }
 
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        String logoutTime = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+
         int loggedOut = 0;
         for (String username : usernames) {
-            boolean removed = attendance.removeIf(a ->
-                    a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
-            if (removed) {
-                loggedOut++;
+            for (Attendance a : attendance) {
+                if (a.getUsername().equals(username) && "Logged In".equals(a.getStatus())) {
+
+                    a.setLogoutTime(logoutTime);
+                    a.setStatus("Logged Out");
+                    loggedOut++;
+
+                    ExcelAttendanceLogger.logAttendance(
+                            a.getUsername(), a.getName(), a.getDate(),
+                            a.getLoginTime(), a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus());
+                    break;
+                }
             }
         }
 
@@ -229,6 +245,51 @@ public class AdministratorPanel extends JPanel {
         loadTodayAttendance();
         updateStatistics();
         JOptionPane.showMessageDialog(this, loggedOut + " student(s) in \"" + section + "\" logged out.");
+    }
+
+    /** Deletes every student account belonging to the section selected in sectionComboBox. */
+    private void deleteSelectedSection() {
+        String section = (String) sectionComboBox.getSelectedItem();
+        if (section == null) {
+            JOptionPane.showMessageDialog(this, "No sections found yet \u2014 add students with a Section first.");
+            return;
+        }
+
+        ArrayList<String> usernames = StudentSectionManager.getUsernamesInSection(section);
+        if (usernames.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No students found in \"" + section + "\".");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Delete the entire section \"" + section + "\" (" + usernames.size() + " student(s))?\n"
+                + "This removes their accounts and QR codes. This cannot be undone.\n"
+                + "(Their past attendance records will be kept.)",
+                "Confirm Delete Section", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        int deletedCount = 0;
+        for (String username : usernames) {
+            if (UserManager.deleteUser(username)) {
+                deletedCount++;
+            }
+            Path qrPath = QrCodeGenerator.getQrPath(username);
+            try {
+                Files.deleteIfExists(qrPath);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        StudentSectionManager.deleteSection(section);
+
+        loadUsersTable();
+        loadSectionComboBox();
+        updateStatistics();
+
+        JOptionPane.showMessageDialog(this, deletedCount + " student(s) in \"" + section + "\" deleted.");
     }
 
     private void loadReasonLogTable() {
@@ -248,7 +309,7 @@ public class AdministratorPanel extends JPanel {
 
     private void changeAdminCredentials() {
         UserManager.AdminAccount currentAdmin = UserManager.loadAdmin();
-        
+
         JTextField usernameField = new JTextField(currentAdmin.getUsername());
         JPasswordField passwordField = new JPasswordField();
         JPasswordField confirmPasswordField = new JPasswordField();
@@ -343,6 +404,10 @@ public class AdministratorPanel extends JPanel {
 
         usersTable.setComponentPopupMenu(menu);
 
+        // Right-click selects the row under the cursor -- unless that row
+        // is already part of an existing multi-selection, in which case
+        // we leave the whole selection intact (so Delete/etc. can act on
+        // all of them, same as most file managers behave).
         usersTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mousePressed(java.awt.event.MouseEvent e) {
@@ -357,7 +422,7 @@ public class AdministratorPanel extends JPanel {
             private void selectRowUnderCursor(java.awt.event.MouseEvent e) {
                 if (e.isPopupTrigger()) {
                     int row = usersTable.rowAtPoint(e.getPoint());
-                    if (row >= 0) {
+                    if (row >= 0 && !usersTable.isRowSelected(row)) {
                         usersTable.setRowSelectionInterval(row, row);
                     }
                 }
@@ -412,8 +477,7 @@ public class AdministratorPanel extends JPanel {
         if (confirm != JOptionPane.YES_OPTION) {
             return;
         }
-
-        String newPassword = generateStrongPassword();
+                String newPassword = generateStrongPassword();
         boolean updated = UserManager.updateUser(username, username, newPassword, target.getName());
 
         if (!updated) {
@@ -631,17 +695,32 @@ public class AdministratorPanel extends JPanel {
     }
 
     private void deleteSelectedUser() {
-        int row = usersTable.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Select a user to delete.");
+        int[] rows = usersTable.getSelectedRows();
+        if (rows.length == 0) {
+            JOptionPane.showMessageDialog(this, "Select at least one user to delete.");
             return;
         }
 
-        String username = usersTable.getValueAt(row, 0).toString();
+        List<String> usernames = new ArrayList<>();
+        for (int row : rows) {
+            usernames.add(usersTable.getValueAt(row, 0).toString());
+        }
+
+        String confirmMessage;
+        if (usernames.size() == 1) {
+            confirmMessage = "Delete user \"" + usernames.get(0) + "\"? This cannot be undone.\n"
+                    + "(Their past attendance records will be kept.)";
+        } else {
+            StringBuilder sb = new StringBuilder("Delete these " + usernames.size()
+                    + " users? This cannot be undone.\n(Their past attendance records will be kept.)\n\n");
+            for (String u : usernames) {
+                sb.append("  \u2022 ").append(u).append("\n");
+            }
+            confirmMessage = sb.toString();
+        }
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Delete user \"" + username + "\"? This cannot be undone.\n"
-                + "(Their past attendance records will be kept.)",
+                confirmMessage,
                 "Confirm Delete",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);
@@ -650,15 +729,27 @@ public class AdministratorPanel extends JPanel {
             return;
         }
 
-        boolean removed = UserManager.deleteUser(username);
-
-        if (removed) {
-            loadUsersTable();
-            updateStatistics();
-            JOptionPane.showMessageDialog(this, "User \"" + username + "\" deleted.");
-        } else {
-            JOptionPane.showMessageDialog(this, "User not found.");
+        int deletedCount = 0;
+        List<String> notFound = new ArrayList<>();
+        for (String username : usernames) {
+            if (UserManager.deleteUser(username)) {
+                deletedCount++;
+            } else {
+                notFound.add(username);
+            }
         }
+
+        loadUsersTable();
+        updateStatistics();
+
+        StringBuilder resultMsg = new StringBuilder(deletedCount + " user(s) deleted.");
+        if (!notFound.isEmpty()) {
+            resultMsg.append("\n\n").append(notFound.size()).append(" not found:\n");
+            for (String u : notFound) {
+                resultMsg.append("  \u2022 ").append(u).append("\n");
+            }
+        }
+        JOptionPane.showMessageDialog(this, resultMsg.toString());
     }
 
     private void initComponents() {
@@ -734,6 +825,13 @@ public class AdministratorPanel extends JPanel {
         changeAdminButton.setForeground(Color.WHITE);
         changeAdminButton.setFocusPainted(false);
         changeAdminButton.addActionListener(e -> changeAdminCredentials());
+
+        helpButton = new JButton("? Help");
+        helpButton.setBackground(new Color(56, 103, 214));
+        helpButton.setForeground(Color.WHITE);
+        helpButton.setFocusPainted(false);
+        helpButton.addActionListener(e ->
+                new TutorialDialog(SwingUtilities.getWindowAncestor(this)).setVisible(true));
 
         jLabel2.setFont(new Font("Tahoma", Font.BOLD, 13));
         jLabel2.setHorizontalAlignment(SwingConstants.LEFT);
@@ -814,11 +912,18 @@ public class AdministratorPanel extends JPanel {
         logOutSectionButton.setFocusPainted(false);
         logOutSectionButton.addActionListener(e -> logOutSelectedSection());
 
+        JButton deleteSectionButton = new JButton("Delete Section");
+        deleteSectionButton.setBackground(new Color(120, 30, 30));
+        deleteSectionButton.setForeground(Color.WHITE);
+        deleteSectionButton.setFocusPainted(false);
+        deleteSectionButton.addActionListener(e -> deleteSelectedSection());
+
         JPanel sectionLogoutRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         sectionLogoutRow.setOpaque(false);
         sectionLogoutRow.add(new JLabel("Section:"));
         sectionLogoutRow.add(sectionComboBox);
         sectionLogoutRow.add(logOutSectionButton);
+        sectionLogoutRow.add(deleteSectionButton);
 
         JPanel attendanceTab = new JPanel(new BorderLayout());
         attendanceTab.setOpaque(false);
@@ -892,6 +997,8 @@ public class AdministratorPanel extends JPanel {
                                 .addComponent(addStudentsButton)
                                 .addGap(26, 26, 26)
                                 .addComponent(changeAdminButton)
+                                .addGap(26, 26, 26)
+                                .addComponent(helpButton)
                                 .addGap(0, 0, Short.MAX_VALUE)))))
                 .addContainerGap())
         );
@@ -910,7 +1017,8 @@ public class AdministratorPanel extends JPanel {
                     .addComponent(jButton3)
                     .addComponent(jButton4)
                     .addComponent(addStudentsButton)
-                    .addComponent(changeAdminButton))
+                    .addComponent(changeAdminButton)
+                    .addComponent(helpButton))
                 .addGap(10, 10, 10)
                 .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel2, GroupLayout.PREFERRED_SIZE, 20, GroupLayout.PREFERRED_SIZE)
@@ -932,8 +1040,7 @@ public class AdministratorPanel extends JPanel {
         for (Attendance a : attendance) {
             if (a.getUsername().toLowerCase().contains(keyword)) {
                 model.addRow(new Object[]{
-                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(),
-                    a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus()
+                    a.getUsername(), a.getName(), a.getDate(), a.getLoginTime(), a.getLogoutTime(), a.getStatus()
                 });
             }
         }
@@ -965,12 +1072,22 @@ public class AdministratorPanel extends JPanel {
         }
 
         ArrayList<Attendance> attendance = AttendanceManager.loadAttendance();
+        String logoutTime = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+
         int loggedOut = 0;
         for (String username : usernames) {
-            boolean removed = attendance.removeIf(a ->
-                    a.getUsername().equals(username) && a.getStatus().equals("Logged In"));
-            if (removed) {
-                loggedOut++;
+            for (Attendance a : attendance) {
+                if (a.getUsername().equals(username) && "Logged In".equals(a.getStatus())) {
+
+                    a.setLogoutTime(logoutTime);
+                    a.setStatus("Logged Out");
+                    loggedOut++;
+
+                    ExcelAttendanceLogger.logAttendance(
+                            a.getUsername(), a.getName(), a.getDate(),
+                            a.getLoginTime(), a.getLogoutTime(), a.getStatus(), a.getAttendanceStatus());
+                    break;
+                }
             }
         }
 
@@ -993,6 +1110,8 @@ public class AdministratorPanel extends JPanel {
         ArrayList<User> users = UserManager.loadUsers();
 
         for (Attendance a : attendance) {
+            if (a == null || a.getUsername() == null) continue; // Safe skip
+
             for (User u : users) {
                 if (u.getUsername().equals(a.getUsername())) {
                     if (a.getUsername().toLowerCase().contains(keyword)

@@ -37,6 +37,12 @@ public class Login {
             splash.showAndDismiss(2000, () -> {
                 MainFrame frame = new MainFrame();
                 frame.setVisible(true);
+
+                if (TutorialDialog.isFirstLaunch()) {
+                    TutorialDialog tutorial = new TutorialDialog(frame);
+                    tutorial.setVisible(true);
+                    TutorialDialog.markTutorialSeen();
+                }
             });
             
         });

@@ -21,7 +21,7 @@ public class AttendanceManager {
     // Stored next to the running application, not the JVM's arbitrary
     // working directory -- avoids "my data disappeared" bugs caused by
     // launching the app from different locations.
-    private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
+    private static final Path FILE = AppPaths.privateDataDir().resolve("attendance.json");
     private static final Path TEMP_FILE = resolveDataFile("attendance.json.tmp");
 
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();

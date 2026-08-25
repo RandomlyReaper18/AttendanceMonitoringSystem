@@ -15,7 +15,7 @@ import java.util.ArrayList;
 public class UserManager {
     private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
     private static final Path TEMP_FILE = resolveDataFile("users.json.tmp");
-    private static final Path ADMIN_FILE = resolveDataFile("admin.json");
+    private static final Path ADMIN_FILE = AppPaths.privateDataDir().resolve("admin.json");
     private static final Path ADMIN_TEMP_FILE = resolveDataFile("admin.json.tmp");
     
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();

@@ -14,7 +14,7 @@ import java.util.ArrayList;
 
 public class ReasonLogManager {
 
-    private static final Path FILE = AppPaths.privateDataDir().resolve("users.json");
+    private static final Path FILE = AppPaths.privateDataDir().resolve("reason_log.json");
     private static final Path TEMP_FILE = resolveDataFile("reason_log.json.tmp");
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
@@ -65,7 +65,10 @@ public class ReasonLogManager {
     /** Checks whether an answer of this type already exists for this user+date, to avoid re-prompting. */
     public static synchronized boolean hasEntry(String username, String date, String type) {
         for (LogEntry e : loadEntries()) {
-            if (e.getUsername().equals(username) && e.getDate().equals(date) && e.getType().equals(type)) {
+            if (e == null) {
+                continue;
+            }
+            if (username.equals(e.getUsername()) && date.equals(e.getDate()) && type.equals(e.getType())) {
                 return true;
             }
         }
