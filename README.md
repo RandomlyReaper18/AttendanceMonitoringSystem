@@ -155,3 +155,44 @@ No external database — everything is local JSON, saved **next to the running a
 | `PasswordHasher.java` | Salted PBKDF2 password hashing |
 | `ReasonLogManager.java` | Late-reason / absence-excuse JSON persistence |
 | `LogEntry.java` | Model for one Reason Log answer |
+
+
+# Student Attendance Management System (v1.0.1)
+
+A Java Swing desktop app for managing student attendance: students log in to record attendance (by typing credentials or scanning a QR code), an administrator manages accounts and reviews records, and a teacher/admin can bulk-create a whole class's accounts at once from a pasted name list.
+
+---
+
+## What's New in v1.0.1
+
+* **Single-Instance Application Control**: Enforced single-instance application execution using a local socket lock (`ServerSocket`) to prevent duplicate processes from launching simultaneously.
+* **Redesigned Student Info Form Panel**: Updated UI featuring a high-contrast dark slate header (`#2B3E50`), styled input borders, modernized buttons, and reduced visual glare.
+* **Application Splash Screen**: Added a lightweight startup loading screen (`SplashScreen.java`) to mask system initialization overhead and JSON file loading.
+
+---
+
+## Requirements
+
+- **Java 17+**
+- **Maven**, with these dependencies in `pom.xml`:
+  - **Gson** — JSON persistence
+  - **Apache POI** (`poi-ooxml`) — Excel export
+  - **ZXing** (`core` + `javase`) — QR code generation and decoding
+  - **webcam-capture** (`com.github.sarxos`) — live camera feed for QR scanning
+
+---
+
+## Running the App
+
+- **Packaged build:** run **`Asys.exe`**.
+- **From source:** set the project's Main Class to `com.mycompany.login.Main` (or `MainFrame`) and run.
+
+Either way, make sure these resources exist on the classpath:
+- `/com/mycompany/login/images/Icon.png` — window/taskbar icon
+
+The app launches a brief splash screen and opens **fullscreen (maximized)** automatically on startup.
+
+**Default administrator login:**
+```text
+Username: admin
+Password: admin123
