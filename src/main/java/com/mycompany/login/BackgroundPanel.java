@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.RescaleOp;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
 
 /**
  * A JPanel that paints a background image scaled to fill the panel,
@@ -15,6 +16,10 @@ import java.net.URL;
  * The image is automatically enhanced (contrast + saturation boosted)
  * once at load time, so washed-out / hazy source photos look clearer
  * without needing to edit the image file itself.
+ *
+ * When no picture is loaded (or the admin hasn't set a custom one via
+ * ThemeManager), a gradient in the current theme's accent color is
+ * painted instead, so the panel always looks intentional.
  */
 public class BackgroundPanel extends JPanel {
 
@@ -27,6 +32,7 @@ public class BackgroundPanel extends JPanel {
 
     public BackgroundPanel() {
         setOpaque(true); // we're fully painting the background ourselves
+        loadFromTheme();
     }
 
     /** Load the image from a classpath resource, e.g. "/com/mycompany/login/images/signal.jpg" */
@@ -42,6 +48,37 @@ public class BackgroundPanel extends JPanel {
             repaint();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    /** Load the image from an arbitrary file on disk (used for the admin's custom background picture). */
+    public void setBackgroundImageFile(Path imagePath) {
+        try {
+            BufferedImage raw = javax.imageio.ImageIO.read(imagePath.toFile());
+            if (raw == null) {
+                System.err.println("Could not read image: " + imagePath);
+                return;
+            }
+            backgroundImage = enhance(raw);
+            repaint();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** Clears any loaded picture, falling back to the theme-colored gradient. */
+    public void clearBackgroundImage() {
+        backgroundImage = null;
+        repaint();
+    }
+
+    /** Re-reads ThemeManager's saved custom background (if any) and displays it; otherwise shows the gradient. */
+    public final void loadFromTheme() {
+        Path custom = ThemeManager.getCustomBackgroundPath();
+        if (custom != null) {
+            setBackgroundImageFile(custom);
+        } else {
+            clearBackgroundImage();
         }
     }
 
@@ -101,11 +138,11 @@ public class BackgroundPanel extends JPanel {
         if (backgroundImage != null) {
             g2.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
         } else {
-            // No photo loaded -- paint a clean brand-color gradient instead
-            // of leaving a blank panel.
+            // No photo loaded -- paint a gradient in the current theme's
+            // accent color instead of leaving a blank panel.
             GradientPaint gradient = new GradientPaint(
-                    0, 0, new Color(56, 103, 214),
-                    getWidth(), getHeight(), new Color(30, 60, 140));
+                    0, 0, ThemeManager.accent(),
+                    getWidth(), getHeight(), ThemeManager.accentDark());
             g2.setPaint(gradient);
             g2.fillRect(0, 0, getWidth(), getHeight());
         }

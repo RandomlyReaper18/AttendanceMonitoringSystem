@@ -20,7 +20,7 @@ public class LoginPanel extends JPanel {
     private final MainFrame mainFrame;
 
     private BackgroundPanel jPanel3;
-    private JPanel jPanel4; // TranslucentCardPanel, the login card
+    private TranslucentCardPanel jPanel4; // the login card
     private JButton jButton1; // LOGIN
     private JLabel jLabel3;
     private JLabel jLabel2;
@@ -34,6 +34,7 @@ public class LoginPanel extends JPanel {
     private JTable jTable1;
     private JButton jButton4; // LOG OUT
     private JButton helpButton;
+    private JButton themeButton;
 
     private JPanel statsRow;
     private StatMiniCard totalStudentsCard;
@@ -57,8 +58,24 @@ public class LoginPanel extends JPanel {
 
         jPasswordField1.addActionListener(e -> jButton1.doClick());
 
+        ThemeManager.addListener(this::refreshTheme);
+        refreshTheme();
+
         loadTodayAttendance();
         updateStatCards();
+    }
+
+    /** Re-applies the current theme's colors to every themed element on this screen. */
+    private void refreshTheme() {
+        jPanel1.setBackground(ThemeManager.accent());
+        jButton1.setBackground(ThemeManager.accent());
+        jPanel4.refreshTheme();
+        jPanel3.loadFromTheme();
+        totalStudentsCard.refreshTheme();
+        presentCard.refreshTheme();
+        absentCard.refreshTheme();
+        lateCard.refreshTheme();
+        repaint();
     }
 
     /** Called by MainFrame right before this card becomes visible. */
@@ -306,7 +323,6 @@ public class LoginPanel extends JPanel {
                 .addGap(40, 40, 40))
         );
 
-        // Fixed: Instantiated mainContent and bound layout directly to it
         JPanel mainContent = new JPanel();
         GroupLayout layout = new GroupLayout(mainContent);
         mainContent.setLayout(layout);
@@ -324,7 +340,7 @@ public class LoginPanel extends JPanel {
             .addComponent(jPanel3, GroupLayout.DEFAULT_SIZE, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
 
-        // Small "Help" button in a thin header row above the login/attendance content.
+        // Small "Help" and "Theme" buttons in a thin header row above the login/attendance content.
         helpButton = new JButton("? Help");
         helpButton.setFocusPainted(false);
         helpButton.setBackground(new Color(255, 255, 255, 220));
@@ -336,8 +352,20 @@ public class LoginPanel extends JPanel {
         helpButton.addActionListener(e ->
                 new TutorialDialog(SwingUtilities.getWindowAncestor(this)).setVisible(true));
 
+        themeButton = new JButton("\u25D0 Theme");
+        themeButton.setFocusPainted(false);
+        themeButton.setBackground(new Color(255, 255, 255, 220));
+        themeButton.setForeground(new Color(56, 103, 214));
+        themeButton.setFont(themeButton.getFont().deriveFont(Font.BOLD, 11f));
+        themeButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(56, 103, 214), 1),
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
+        themeButton.addActionListener(e ->
+                new ThemeSettingsDialog(SwingUtilities.getWindowAncestor(this), false).setVisible(true));
+
         JPanel helpCorner = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 8));
         helpCorner.setOpaque(false);
+        helpCorner.add(themeButton);
         helpCorner.add(helpButton);
 
         setLayout(new BorderLayout());

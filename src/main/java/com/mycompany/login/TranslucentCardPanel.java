@@ -10,11 +10,12 @@ import java.awt.*;
  */
 public class TranslucentCardPanel extends JPanel {
 
-    private Color fillColor = new Color(255, 255, 255, 180); // white, ~70% opaque
+    private Color fillColor;
     private int arc = 20; // corner rounding
 
     public TranslucentCardPanel() {
         setOpaque(false); // let paintComponent handle the fill so corners stay rounded
+        refreshTheme();
     }
 
     public void setFillColor(Color c) {
@@ -24,6 +25,13 @@ public class TranslucentCardPanel extends JPanel {
 
     public void setCornerArc(int arc) {
         this.arc = arc;
+        repaint();
+    }
+
+    /** Re-derives the translucent fill from the current theme's card color. */
+    public void refreshTheme() {
+        Color base = ThemeManager.cardBackground();
+        this.fillColor = new Color(base.getRed(), base.getGreen(), base.getBlue(), 210);
         repaint();
     }
 

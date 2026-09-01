@@ -12,6 +12,7 @@ import java.awt.*;
 public class StatMiniCard extends JPanel {
 
     private final JLabel valueLabel;
+    private final JLabel titleLabel;
     private final int arc = 14;
     private final Color accentColor;
 
@@ -38,14 +39,12 @@ public class StatMiniCard extends JPanel {
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
         textPanel.setBorder(BorderFactory.createEmptyBorder(6, 14, 10, 14));
 
-        JLabel titleLabel = new JLabel(title);
+        titleLabel = new JLabel(title);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        titleLabel.setForeground(new Color(100, 100, 100));
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         valueLabel = new JLabel("0");
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        valueLabel.setForeground(new Color(35, 35, 35));
         valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         textPanel.add(titleLabel);
@@ -53,17 +52,26 @@ public class StatMiniCard extends JPanel {
         textPanel.add(valueLabel);
 
         add(textPanel, BorderLayout.CENTER);
+
+        refreshTheme();
     }
 
     public void setValue(String value) {
         valueLabel.setText(value);
     }
 
+    /** Re-applies the current theme's card background / text colors and repaints. */
+    public void refreshTheme() {
+        titleLabel.setForeground(ThemeManager.textSecondary());
+        valueLabel.setForeground(ThemeManager.textPrimary());
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setColor(Color.WHITE);
+        g2.setColor(ThemeManager.cardBackground());
         g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
         g2.dispose();
         super.paintComponent(g);
