@@ -13,37 +13,51 @@ import com.google.zxing.common.HybridBinarizer;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * A modal dialog showing a live webcam feed, continuously scanning for a
  * QR code. Expects the format QrCodeGenerator produces ("username:password").
  * When a code is found, calls onScanned with the decoded text and closes.
+ *
+ * If more than one camera is connected (e.g. a laptop's built-in camera
+ * plus a USB webcam plugged in for a front-desk kiosk), a dropdown lets
+ * the user choose which one to scan with instead of always defaulting to
+ * whatever Webcam.getDefault() happens to pick.
  */
 public class QrScannerDialog extends JDialog {
 
     private Webcam webcam;
-    private volatile boolean running = true;
+    private volatile boolean running = false;
+    private Thread scanThread;
     private final Consumer<String> onScanned;
     private final JLabel previewLabel = new JLabel();
     private final JLabel statusLabel = new JLabel("Point a student's QR code at the camera...", SwingConstants.CENTER);
+    private final JComboBox<Webcam> cameraSelector = new JComboBox<>();
 
     public QrScannerDialog(Window owner, Consumer<String> onScanned) {
         super(owner, "Scan QR Code", ModalityType.APPLICATION_MODAL);
         this.onScanned = onScanned;
 
-        webcam = Webcam.getDefault();
-        if (webcam == null) {
+        List<Webcam> available = Webcam.getWebcams();
+        if (available.isEmpty()) {
             JOptionPane.showMessageDialog(owner, "No webcam was found on this computer.");
             return;
         }
 
-        // --- FIX: Dynamically set a supported view size ---
-        setSupportedViewSize(webcam);
-
         buildUI();
-        setSize(540, 480);
+        setSize(560, 540);
         setLocationRelativeTo(owner);
+
+        for (Webcam cam : available) {
+            cameraSelector.addItem(cam);
+        }
+        // Prefer the system default if it's in the list, otherwise just the first one.
+        Webcam preferred = Webcam.getDefault();
+        cameraSelector.setSelectedItem(available.contains(preferred) ? preferred : available.get(0));
+
+        cameraSelector.addActionListener(e -> switchCamera((Webcam) cameraSelector.getSelectedItem()));
 
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -52,11 +66,13 @@ public class QrScannerDialog extends JDialog {
             }
         });
 
-        Thread scanThread = new Thread(this::scanLoop, "qr-scan-thread");
-        scanThread.setDaemon(true);
-        scanThread.start();
+        // Only shown when there's an actual choice to make -- with a single
+        // camera the dropdown would just be clutter.
+        cameraSelector.setVisible(available.size() > 1);
 
-        setVisible(true); // blocks here (modal) until dispose() is called by the scan thread
+        switchCamera((Webcam) cameraSelector.getSelectedItem());
+
+        setVisible(true); // blocks here (modal) until dispose() is called
     }
 
     /**
@@ -88,12 +104,23 @@ public class QrScannerDialog extends JDialog {
         content.setBackground(Color.WHITE);
         setContentPane(content);
 
+        JPanel topPanel = new JPanel(new BorderLayout(0, 8));
+        topPanel.setOpaque(false);
+
+        JPanel cameraRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+        cameraRow.setOpaque(false);
+        cameraRow.add(new JLabel("Camera:"));
+        cameraRow.add(cameraSelector);
+
+        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
+
+        topPanel.add(cameraRow, BorderLayout.NORTH);
+        topPanel.add(statusLabel, BorderLayout.SOUTH);
+
         previewLabel.setHorizontalAlignment(SwingConstants.CENTER);
         previewLabel.setPreferredSize(new Dimension(480, 360));
         previewLabel.setOpaque(true);
         previewLabel.setBackground(Color.BLACK);
-
-        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.BOLD));
 
         JButton cancelButton = new JButton("Cancel");
         cancelButton.addActionListener(e -> {
@@ -103,17 +130,44 @@ public class QrScannerDialog extends JDialog {
         JPanel bottomRow = new JPanel(new FlowLayout(FlowLayout.CENTER));
         bottomRow.add(cancelButton);
 
-        content.add(statusLabel, BorderLayout.NORTH);
+        content.add(topPanel, BorderLayout.NORTH);
         content.add(previewLabel, BorderLayout.CENTER);
         content.add(bottomRow, BorderLayout.SOUTH);
     }
 
+    /** Stops scanning on whatever camera is currently open, then opens and starts scanning on the new one. */
+    private void switchCamera(Webcam newCamera) {
+        if (newCamera == null || newCamera == webcam) {
+            return;
+        }
+
+        stopScanning();
+
+        webcam = newCamera;
+        statusLabel.setText("Point a student's QR code at the camera...");
+
+        setSupportedViewSize(webcam);
+
+        running = true;
+        scanThread = new Thread(this::scanLoop, "qr-scan-thread");
+        scanThread.setDaemon(true);
+        scanThread.start();
+    }
+
     private void scanLoop() {
-        webcam.open();
+        Webcam activeWebcam = webcam;
+        try {
+            activeWebcam.open();
+        } catch (Exception e) {
+            SwingUtilities.invokeLater(() ->
+                    statusLabel.setText("Could not open this camera -- try selecting a different one."));
+            return;
+        }
+
         MultiFormatReader reader = new MultiFormatReader();
 
-        while (running) {
-            BufferedImage image = webcam.getImage();
+        while (running && webcam == activeWebcam) {
+            BufferedImage image = activeWebcam.getImage();
             if (image == null) {
                 sleep();
                 continue;
@@ -142,6 +196,10 @@ public class QrScannerDialog extends JDialog {
             }
 
             sleep();
+        }
+
+        if (activeWebcam.isOpen()) {
+            activeWebcam.close();
         }
     }
 

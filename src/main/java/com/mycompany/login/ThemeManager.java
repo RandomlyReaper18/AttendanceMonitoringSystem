@@ -15,13 +15,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Central place for the app's color palette + the admin's chosen background
- * picture. Two modes: LIGHT_PURPLE (default) and DARK. Settings persist to
- * theme_settings.json so they survive a restart, and any screen can call
- * addListener(...) to get notified (and repaint itself) the instant the
- * theme or background picture changes elsewhere in the app.
- */
 public class ThemeManager {
 
     public enum Mode { LIGHT_PURPLE, DARK }
@@ -33,16 +26,21 @@ public class ThemeManager {
     private static final List<Runnable> listeners = new ArrayList<>();
 
     private static Mode mode = Mode.LIGHT_PURPLE;
-    private static String customBackgroundPath = null; // absolute path, or null = use default gradient
+    private static String customBackgroundPath = null;
+
+    // Optional user-picked accent color that overrides the mode's built-in
+    // accent everywhere (buttons, headers, table highlights, etc). Stored
+    // as "#RRGGBB"; null means "use the mode default".
+    private static Color customAccent = null;
 
     static {
         load();
     }
 
-    /** Small POJO just for JSON persistence. */
     private static class Settings {
         String mode;
         String customBackgroundPath;
+        String customAccentHex;
     }
 
     private static void load() {
@@ -60,6 +58,12 @@ public class ThemeManager {
                         }
                     }
                     customBackgroundPath = s.customBackgroundPath;
+                    if (s.customAccentHex != null) {
+                        try {
+                            customAccent = Color.decode(s.customAccentHex);
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
@@ -72,6 +76,7 @@ public class ThemeManager {
             Settings s = new Settings();
             s.mode = mode.name();
             s.customBackgroundPath = customBackgroundPath;
+            s.customAccentHex = (customAccent == null) ? null : toHex(customAccent);
             try (Writer writer = new OutputStreamWriter(Files.newOutputStream(TEMP_FILE), StandardCharsets.UTF_8)) {
                 gson.toJson(s, writer);
                 writer.flush();
@@ -80,6 +85,10 @@ public class ThemeManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static String toHex(Color c) {
+        return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
     }
 
     public static Mode getMode() {
@@ -99,7 +108,6 @@ public class ThemeManager {
         return mode == Mode.DARK;
     }
 
-    /** Copies the chosen image into the app's private data folder and remembers it as the background. */
     public static void setCustomBackground(Path sourceImage) throws IOException {
         String fileName = sourceImage.getFileName().toString();
         String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.')) : ".png";
@@ -110,16 +118,37 @@ public class ThemeManager {
         notifyListeners();
     }
 
-    /** Reverts to the default theme-colored gradient (no picture). */
     public static void clearCustomBackground() {
         customBackgroundPath = null;
         persist();
         notifyListeners();
     }
 
-    /** Null if no custom background has been set. */
     public static Path getCustomBackgroundPath() {
         return customBackgroundPath == null ? null : Path.of(customBackgroundPath);
+    }
+
+    /** Sets a user-picked accent color that overrides the mode's built-in accent everywhere. */
+    public static void setCustomAccent(Color color) {
+        customAccent = color;
+        persist();
+        notifyListeners();
+    }
+
+    /** Reverts to the mode's built-in accent color. */
+    public static void clearCustomAccent() {
+        customAccent = null;
+        persist();
+        notifyListeners();
+    }
+
+    public static boolean hasCustomAccent() {
+        return customAccent != null;
+    }
+
+    /** The color currently shown as selected in a color picker, or null if using the mode default. */
+    public static Color getCustomAccent() {
+        return customAccent;
     }
 
     public static void addListener(Runnable onChange) {
@@ -137,34 +166,56 @@ public class ThemeManager {
     }
 
     // ---------- Palette ----------
-    // Light Purple: soft lavender accent on a very light lilac-white background.
+    // Light Purple: soft lavender accent on a muted lilac-gray background
+    // (not stark white/bright, so long screen sessions are easier on the eyes).
     // Dark: the same lavender accent, brightened slightly, on near-black panels.
+    // A custom accent (if set) overrides the lavender in both modes; the
+    // page/card/text colors still follow light/dark since those exist for
+    // contrast and readability, not branding.
 
     public static Color accent() {
-        return isDark() ? new Color(179, 157, 219) : new Color(149, 117, 205);
+        if (customAccent != null) {
+            return customAccent;
+        }
+        return isDark() ? new Color(179, 157, 219) : new Color(142, 108, 200);
     }
 
     public static Color accentDark() {
-        return isDark() ? new Color(149, 117, 205) : new Color(112, 80, 168);
+        if (customAccent != null) {
+            return shade(customAccent, -0.22f);
+        }
+        return isDark() ? new Color(142, 108, 200) : new Color(102, 72, 158);
     }
 
     public static Color pageBackground() {
-        return isDark() ? new Color(28, 26, 34) : new Color(245, 242, 250);
+        return isDark() ? new Color(24, 22, 30) : new Color(224, 216, 238);
     }
 
     public static Color cardBackground() {
-        return isDark() ? new Color(42, 39, 51) : Color.WHITE;
+        return isDark() ? new Color(38, 35, 47) : new Color(245, 241, 250);
     }
 
     public static Color cardBorder() {
-        return isDark() ? new Color(70, 64, 84) : new Color(226, 220, 240);
+        return isDark() ? new Color(66, 60, 80) : new Color(206, 196, 224);
     }
 
     public static Color textPrimary() {
-        return isDark() ? new Color(235, 232, 240) : new Color(40, 35, 50);
+        return isDark() ? new Color(235, 232, 240) : new Color(35, 30, 46);
     }
 
     public static Color textSecondary() {
-        return isDark() ? new Color(175, 170, 185) : new Color(110, 102, 125);
+        return isDark() ? new Color(175, 170, 185) : new Color(96, 88, 112);
+    }
+
+    /** amount &gt; 0 brightens, amount &lt; 0 darkens, preserving alpha. */
+    private static Color shade(Color c, float amount) {
+        int r = clamp((int) (c.getRed() + 255 * amount));
+        int g = clamp((int) (c.getGreen() + 255 * amount));
+        int b = clamp((int) (c.getBlue() + 255 * amount));
+        return new Color(r, g, b, c.getAlpha());
+    }
+
+    private static int clamp(int v) {
+        return Math.max(0, Math.min(255, v));
     }
 }

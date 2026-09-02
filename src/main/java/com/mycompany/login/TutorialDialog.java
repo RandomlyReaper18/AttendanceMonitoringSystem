@@ -3,28 +3,18 @@ package com.mycompany.login;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * A simple tabbed "How to use this app" guide. One tab for students
- * (login screen), one for admins (dashboard). Shown automatically the
- * first time the app is ever launched (see AppPaths / the marker file
- * this class writes), and reachable any time after that via a "Help"
- * button on the Login and Admin screens.
- */
 public class TutorialDialog extends JDialog {
-
-    private static final Color ACCENT = new Color(56, 103, 214);
 
     public TutorialDialog(Window owner) {
         super(owner, "Getting Started", ModalityType.APPLICATION_MODAL);
 
         JPanel content = new JPanel(new BorderLayout(0, 12));
-        content.setBackground(Color.WHITE);
-        content.setBorder(BorderFactory.createEmptyBorder(18, 18, 14, 18));
-        setContentPane(content);
+        content.setOpaque(false);
+        content.setBorder(BorderFactory.createEmptyBorder(6, 18, 14, 18));
 
         JLabel title = new JLabel("Welcome to the Attendance Monitoring System");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        title.setForeground(new Color(35, 35, 35));
+        title.setForeground(ThemeManager.textPrimary());
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("For Students", buildScrollableHtml(studentHtml()));
@@ -33,9 +23,10 @@ public class TutorialDialog extends JDialog {
 
         JCheckBox dontShowAgain = new JCheckBox("Don't show this automatically next time");
         dontShowAgain.setOpaque(false);
+        dontShowAgain.setForeground(ThemeManager.textSecondary());
 
-        JButton closeButton = new JButton("Got it!");
-        closeButton.setBackground(ACCENT);
+        JButton closeButton = new RoundedButton("Got it!");
+        closeButton.setBackground(ThemeManager.accent());
         closeButton.setForeground(Color.WHITE);
         closeButton.setFocusPainted(false);
         closeButton.addActionListener(e -> {
@@ -58,14 +49,15 @@ public class TutorialDialog extends JDialog {
         content.add(tabs, BorderLayout.CENTER);
         content.add(bottomRow, BorderLayout.SOUTH);
 
-        setSize(560, 480);
+        RoundedDialogSupport.apply(this, content, "Getting Started");
+        setSize(560, 520);
         setLocationRelativeTo(owner);
     }
 
     private JScrollPane buildScrollableHtml(String html) {
         JEditorPane pane = new JEditorPane("text/html", html);
         pane.setEditable(false);
-        pane.setBackground(Color.WHITE);
+        pane.setBackground(ThemeManager.cardBackground());
         pane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         JScrollPane scroll = new JScrollPane(pane);
         scroll.setBorder(null);

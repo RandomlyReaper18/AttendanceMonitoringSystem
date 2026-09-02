@@ -177,7 +177,7 @@ public class LoginPanel extends JPanel {
         jScrollPane1 = new JScrollPane();
         jTable1 = new JTable();
         jButton4 = new JButton();
-
+        
         jButton1.setText("LOGIN");
         jButton1.setBackground(new Color(56, 103, 214));
         jButton1.setForeground(Color.WHITE);
@@ -361,7 +361,7 @@ public class LoginPanel extends JPanel {
                 BorderFactory.createLineBorder(new Color(56, 103, 214), 1),
                 BorderFactory.createEmptyBorder(4, 10, 4, 10)));
         themeButton.addActionListener(e ->
-                new ThemeSettingsDialog(SwingUtilities.getWindowAncestor(this), false).setVisible(true));
+                new PreferencesDialog(SwingUtilities.getWindowAncestor(this), false).setVisible(true));
 
         JPanel helpCorner = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 8));
         helpCorner.setOpaque(false);

@@ -25,10 +25,6 @@ import javax.imageio.ImageIO;
  */
 public class AdministratorPanel extends JPanel {
 
-    private static final Color PAGE_BG = new Color(244, 246, 250);
-    private static final Color CARD_BG = Color.WHITE;
-    private static final Color CARD_BORDER = new Color(224, 227, 233);
-
     private final MainFrame mainFrame;
 
     private JButton jButton1;
@@ -62,6 +58,11 @@ public class AdministratorPanel extends JPanel {
     private JButton deleteUserButton;
     private JTable reasonLogTable;
 
+    private JButton logOutSectionButton;
+    private JButton deleteSectionButton;
+
+    private final Runnable themeListener = this::refreshTheme;
+
     public AdministratorPanel(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
         initComponents();
@@ -83,6 +84,7 @@ public class AdministratorPanel extends JPanel {
             "Username", "Name", "Date", "Login Time", "Logout Time", "Status", "Attendance"
         });
         jTable1.setModel(model);
+        TableStyler.style(jTable1);
 
         usersTable.setFillsViewportHeight(true);
         usersTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -90,6 +92,7 @@ public class AdministratorPanel extends JPanel {
         DefaultTableModel usersModel = new DefaultTableModel();
         usersModel.setColumnIdentifiers(new String[]{"Username", "Full Name"});
         usersTable.setModel(usersModel);
+        TableStyler.style(usersTable);
 
         loadTodayAttendance();
         loadUsersTable();
@@ -117,6 +120,24 @@ public class AdministratorPanel extends JPanel {
                 searchUser();
             }
         });
+
+        // Live-follow theme changes (mode + custom accent) instead of the
+        // hardcoded colors this screen used to have baked in at construction.
+        ThemeManager.addListener(themeListener);
+        addAncestorListener(new javax.swing.event.AncestorListener() {
+            @Override
+            public void ancestorRemoved(javax.swing.event.AncestorEvent event) {
+                ThemeManager.removeListener(themeListener);
+            }
+            @Override
+            public void ancestorAdded(javax.swing.event.AncestorEvent event) {
+            }
+            @Override
+            public void ancestorMoved(javax.swing.event.AncestorEvent event) {
+            }
+        });
+
+        refreshTheme();
     }
 
     /** Called by MainFrame right before this card becomes visible. */
@@ -126,6 +147,62 @@ public class AdministratorPanel extends JPanel {
         loadReasonLogTable();
         loadSectionComboBox();
         updateStatistics();
+        refreshTheme();
+    }
+
+    /**
+     * Re-applies the current theme (light/dark + custom accent, if any) to
+     * every themed element on this screen: the header bar, dashboard card,
+     * action buttons, and all three tables via TableStyler. Called once at
+     * startup and again whenever ThemeManager notifies of a change.
+     */
+    private void refreshTheme() {
+        setBackground(ThemeManager.pageBackground());
+
+        jPanel1.setBackground(ThemeManager.accent());
+
+        jPanel2.setBackground(ThemeManager.cardBackground());
+        jPanel2.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.cardBorder(), 1),
+                BorderFactory.createEmptyBorder(14, 16, 14, 16)));
+
+        jLabel6.setForeground(ThemeManager.textPrimary());
+        jLabel2.setForeground(ThemeManager.textPrimary());
+        jLabel3.setForeground(ThemeManager.textPrimary());
+        jLabel4.setForeground(ThemeManager.textPrimary());
+
+        jTextField1.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ThemeManager.cardBorder(), 1),
+                BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+        jTextField1.setBackground(ThemeManager.cardBackground());
+        jTextField1.setForeground(ThemeManager.textPrimary());
+
+        jButton1.setBackground(ThemeManager.accent());
+        jButton1.setForeground(Color.WHITE);
+        jButton3.setBackground(ThemeManager.accent());
+        jButton3.setForeground(Color.WHITE);
+        helpButton.setBackground(ThemeManager.accent());
+        helpButton.setForeground(Color.WHITE);
+        logOutSectionButton.setBackground(ThemeManager.accentDark());
+        logOutSectionButton.setForeground(Color.WHITE);
+
+        // These stay semantically red/green regardless of theme -- they
+        // signal "destructive"/"add", not brand color -- so they're left
+        // alone rather than tinted with the accent.
+        // jButton2 (Log Out User), addStudentsButton, deleteSectionButton,
+        // deleteUserButton, changeAdminButton keep their fixed colors.
+
+        attendanceCard.refreshTheme();
+        presentCard.refreshTheme();
+        absentCard.refreshTheme();
+        lateCard.refreshTheme();
+        registeredCard.refreshTheme();
+
+        TableStyler.style(jTable1);
+        TableStyler.style(usersTable);
+        TableStyler.style(reasonLogTable);
+
+        repaint();
     }
 
     private void updateStatistics() {
@@ -768,7 +845,6 @@ public class AdministratorPanel extends JPanel {
         jTextField1 = new JTextField();
         jButton1 = new JButton();
 
-        setBackground(PAGE_BG);
         setOpaque(true);
 
         jTable1.setModel(new DefaultTableModel(
@@ -776,8 +852,6 @@ public class AdministratorPanel extends JPanel {
             new String[]{"Title 1", "Title 2", "Title 3", "Title 4"}
         ));
         jScrollPane1.setViewportView(jTable1);
-
-        jPanel1.setBackground(new Color(51, 153, 255));
 
         jLabel1.setFont(new Font("Tahoma", Font.BOLD, 24));
         jLabel1.setForeground(Color.WHITE);
@@ -805,8 +879,6 @@ public class AdministratorPanel extends JPanel {
         jButton2.addActionListener(this::jButton2ActionPerformed);
 
         jButton3.setText("Refresh");
-        jButton3.setBackground(new Color(56, 103, 214));
-        jButton3.setForeground(Color.WHITE);
         jButton3.setFocusPainted(false);
         jButton3.addActionListener(this::jButton3ActionPerformed);
 
@@ -827,8 +899,6 @@ public class AdministratorPanel extends JPanel {
         changeAdminButton.addActionListener(e -> changeAdminCredentials());
 
         helpButton = new JButton("? Help");
-        helpButton.setBackground(new Color(56, 103, 214));
-        helpButton.setForeground(Color.WHITE);
         helpButton.setFocusPainted(false);
         helpButton.addActionListener(e ->
                 new TutorialDialog(SwingUtilities.getWindowAncestor(this)).setVisible(true));
@@ -846,17 +916,11 @@ public class AdministratorPanel extends JPanel {
         jLabel4.setText("");
 
         jLabel6.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        jLabel6.setForeground(new Color(40, 40, 40));
         jLabel6.setText("DASHBOARD");
 
         jTextField1.addActionListener(this::jTextField1ActionPerformed);
-        jTextField1.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(CARD_BORDER, 1),
-                BorderFactory.createEmptyBorder(6, 8, 6, 8)));
 
         jButton1.setText("Search");
-        jButton1.setBackground(new Color(56, 103, 214));
-        jButton1.setForeground(Color.WHITE);
         jButton1.setFocusPainted(false);
         jButton1.addActionListener(this::jButton1ActionPerformed);
 
@@ -874,11 +938,7 @@ public class AdministratorPanel extends JPanel {
         statsRow.add(lateCard);
         statsRow.add(registeredCard);
 
-        jPanel2.setBackground(CARD_BG);
         jPanel2.setOpaque(true);
-        jPanel2.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(CARD_BORDER, 1),
-                BorderFactory.createEmptyBorder(14, 16, 14, 16)));
 
         GroupLayout jPanel2Layout = new GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
@@ -906,13 +966,12 @@ public class AdministratorPanel extends JPanel {
         tabbedPane = new JTabbedPane();
 
         sectionComboBox = new JComboBox<>();
-        JButton logOutSectionButton = new JButton("Log Out Section");
-        logOutSectionButton.setBackground(new Color(200, 55, 55));
+        logOutSectionButton = new JButton("Log Out Section");
         logOutSectionButton.setForeground(Color.WHITE);
         logOutSectionButton.setFocusPainted(false);
         logOutSectionButton.addActionListener(e -> logOutSelectedSection());
 
-        JButton deleteSectionButton = new JButton("Delete Section");
+        deleteSectionButton = new JButton("Delete Section");
         deleteSectionButton.setBackground(new Color(120, 30, 30));
         deleteSectionButton.setForeground(Color.WHITE);
         deleteSectionButton.setFocusPainted(false);

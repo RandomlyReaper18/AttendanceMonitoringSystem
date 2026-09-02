@@ -8,7 +8,6 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 
@@ -17,7 +16,7 @@ public class UserManager {
     private static final Path TEMP_FILE = resolveDataFile("users.json.tmp");
     private static final Path ADMIN_FILE = AppPaths.privateDataDir().resolve("admin.json");
     private static final Path ADMIN_TEMP_FILE = resolveDataFile("admin.json.tmp");
-    
+
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     // Data model for Admin Credentials
@@ -36,19 +35,16 @@ public class UserManager {
         public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     }
 
+    /**
+     * Resolves a data file's path the same way every other manager does --
+     * inside AppPaths.privateDataDir() (e.g. %APPDATA%/Asys) -- NOT next to
+     * the running jar. Previously this used the jar's own directory, which
+     * broke atomic saves whenever the app was installed somewhere
+     * unwritable (like Program Files) and left temp files in the wrong
+     * folder.
+     */
     private static Path resolveDataFile(String name) {
-        try {
-            String jarDir = new File(UserManager.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI())
-                    .getParentFile()
-                    .getAbsolutePath();
-            return Paths.get(jarDir, name);
-        } catch (Exception e) {
-            return Paths.get(name);
-        }
+        return AppPaths.privateDataDir().resolve(name);
     }
 
     /** Loads admin details or creates default credentials if admin.json does not exist. */
@@ -91,7 +87,7 @@ public class UserManager {
     /** Verifies admin login using hashed password stored in admin.json. */
     public static boolean adminLogin(String username, String password) {
         AdminAccount admin = loadAdmin();
-        return admin.getUsername().equals(username) 
+        return admin.getUsername().equals(username)
                 && PasswordHasher.verify(password, admin.getPasswordHash());
     }
 
